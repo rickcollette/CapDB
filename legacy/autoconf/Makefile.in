@@ -1,0 +1,301 @@
+########################################################################
+# This is a main makefile for the "autoconf" bundle of SQLite. This is
+# a trimmed-down version of the canonical makefile, devoid of most
+# documentation. For the full docs, see /main.mk in the canonical
+# source tree.
+#
+# Maintenance reminders:
+#
+# - To keep this working with an out-of-tree build, be sure to prefix
+#   input file names with $(TOP)/ where appropriate (which is most
+#   places).
+#
+# - The original/canonical recipes can be found in /main.mk in the
+#   canonical source tree.
+all:
+
+TOP = @abs_top_srcdir@
+
+PACKAGE_VERSION = @PACKAGE_VERSION@
+
+#
+# Filename extensions for binaries and libraries
+#
+B.exe = @BUILD_EXEEXT@
+T.exe = @TARGET_EXEEXT@
+B.dll = @BUILD_DLLEXT@
+T.dll = @TARGET_DLLEXT@
+B.lib = @BUILD_LIBEXT@
+T.lib = @TARGET_LIBEXT@
+
+#
+# Autotools-compatibility dirs
+#
+prefix      = @prefix@
+datadir     = @datadir@
+mandir      = @mandir@
+includedir  = @includedir@
+exec_prefix = @exec_prefix@
+bindir      = @bindir@
+libdir      = @libdir@
+
+#
+# Required binaries
+#
+INSTALL = @BIN_INSTALL@
+AR = @AR@
+AR.flags = cr
+CC = @CC@
+
+
+ENABLE_LIB_SHARED = @ENABLE_LIB_SHARED@
+ENABLE_LIB_STATIC = @ENABLE_LIB_STATIC@
+HAVE_WASI_SDK = @HAVE_WASI_SDK@
+
+CFLAGS = @CFLAGS@ @CPPFLAGS@
+#
+# $(LDFLAGS.configure) represents any LDFLAGS=... the client passes to
+# configure. See main.mk.
+#
+LDFLAGS.configure = @LDFLAGS@
+
+CFLAGS.core = @SH_CFLAGS@
+LDFLAGS.shlib = @SH_LDFLAGS@
+LDFLAGS.zlib = @LDFLAGS_ZLIB@
+LDFLAGS.math = @LDFLAGS_MATH@
+LDFLAGS.rpath = @LDFLAGS_RPATH@
+LDFLAGS.pthread = @LDFLAGS_PTHREAD@
+LDFLAGS.dlopen = @LDFLAGS_DLOPEN@
+LDFLAGS.readline = @LDFLAGS_READLINE@
+CFLAGS.readline = @CFLAGS_READLINE@
+LDFLAGS.rt = @LDFLAGS_RT@
+LDFLAGS.icu = @LDFLAGS_ICU@
+CFLAGS.icu = @CFLAGS_ICU@
+
+# INSTALL reminder: we specifically do not strip binaries,
+# as discussed in https://sqlite.org/forum/forumpost/9a67df63eda9925c.
+INSTALL.noexec  = $(INSTALL) -m 0644
+
+install-dir.bin = $(DESTDIR)$(bindir)
+install-dir.lib = $(DESTDIR)$(libdir)
+install-dir.include = $(DESTDIR)$(includedir)
+install-dir.pkgconfig = $(DESTDIR)$(libdir)/pkgconfig
+install-dir.man1 = $(DESTDIR)$(mandir)/man1
+install-dir.all = $(install-dir.bin) $(install-dir.include) \
+  $(install-dir.lib) $(install-dir.man1) \
+  $(install-dir.pkgconfig)
+$(install-dir.all):
+	@if [ ! -d "$@" ]; then set -x; $(INSTALL) -d "$@"; fi
+# ^^^^ on some platforms, install -d fails if the target already exists.
+
+
+#
+# Vars with the AS_ prefix are specifically related to AutoSetup.
+#
+# AS_AUTO_DEF is the main configure script.
+#
+AS_AUTO_DEF = $(TOP)/auto.def
+
+#
+# Shell commands to re-run $(TOP)/configure with the same args it was
+# invoked with to produce this makefile.
+#
+AS_AUTORECONFIG = @CAPDB_AUTORECONFIG@
+Makefile: $(TOP)/Makefile.in $(AS_AUTO_DEF)
+	$(AS_AUTORECONFIG)
+	@touch $@
+
+capdb.pc: $(TOP)/capdb.pc.in $(AS_AUTO_DEF)
+	$(AS_AUTORECONFIG)
+	@touch $@
+
+capdb_cfg.h: $(AS_AUTO_DEF)
+	$(AS_AUTORECONFIG)
+	@touch $@
+
+#
+# CFLAGS for capdb$(T.exe)
+#
+SHELL_OPT ?= @OPT_SHELL@
+
+#
+# Library-level feature flags
+#
+OPT_FEATURE_FLAGS = @OPT_FEATURE_FLAGS@
+
+LDFLAGS.libcapdb.soname = @LDFLAGS_LIBSQLITE3_SONAME@
+# soname: see https://sqlite.org/src/forumpost/5a3b44f510df8ded
+LDFLAGS.libcapdb.os-specific = \
+  @LDFLAGS_MAC_CVERSION@ @LDFLAGS_MAC_INSTALL_NAME@ @LDFLAGS_OUT_IMPLIB@
+
+LDFLAGS.libcapdb = \
+  $(LDFLAGS.rpath) $(LDFLAGS.pthread) \
+  $(LDFLAGS.math) $(LDFLAGS.dlopen) \
+  $(LDFLAGS.zlib) $(LDFLAGS.icu) \
+  $(LDFLAGS.rt) $(LDFLAGS.configure)
+CFLAGS.libcapdb = -I. $(CFLAGS.core) $(CFLAGS.icu) $(OPT_FEATURE_FLAGS)
+
+capdb.o: $(TOP)/capdb.h $(TOP)/capdb.c
+	$(CC) -c $(TOP)/capdb.c -o $@ $(CFLAGS) $(CFLAGS.libcapdb)
+
+libcapdb.LIB = libcapdb$(T.lib)
+libcapdb.DLL.basename = @CAPDB_DLL_BASENAME@
+libcapdb.out.implib = @CAPDB_OUT_IMPLIB@
+libcapdb.DLL = $(libcapdb.DLL.basename)$(T.dll)
+libcapdb.DLL.install-rules = @CAPDB_DLL_INSTALL_RULES@
+
+$(libcapdb.DLL): capdb.o
+	$(CC) -o $@  capdb.o $(LDFLAGS.shlib) \
+		$(LDFLAGS) $(LDFLAGS.libcapdb) \
+		$(LDFLAGS.libcapdb.os-specific) $(LDFLAGS.libcapdb.soname)
+$(libcapdb.DLL)-1: $(libcapdb.DLL)
+$(libcapdb.DLL)-0:
+all: $(libcapdb.DLL)-$(ENABLE_LIB_SHARED)
+
+$(libcapdb.LIB): capdb.o
+	$(AR) $(AR.flags) $@ capdb.o
+$(libcapdb.LIB)-1: $(libcapdb.LIB)
+$(libcapdb.LIB)-0:
+all: $(libcapdb.LIB)-$(ENABLE_LIB_STATIC)
+
+#
+# Maintenance reminder: the install-dll-... rules must be kept in sync
+# with the main copies rom /main.mk.
+#
+install-dll-out-implib: $(install-dir.lib) $(libcapdb.DLL)
+	if [ x != "x$(libcapdb.out.implib)" ] && [ -f "$(libcapdb.out.implib)" ]; then \
+		$(INSTALL) $(libcapdb.out.implib) "$(install-dir.lib)"; \
+	fi
+
+install-dll-unix-generic: install-dll-out-implib
+	$(INSTALL) $(libcapdb.DLL) "$(install-dir.lib)"
+	@echo "Setting up $(libcapdb.DLL) version symlinks..."; \
+	cd "$(install-dir.lib)" || exit $$?; \
+	rm -f $(libcapdb.DLL).0 $(libcapdb.DLL).$(PACKAGE_VERSION) || exit $$?; \
+	mv $(libcapdb.DLL) $(libcapdb.DLL).$(PACKAGE_VERSION) || exit $$?; \
+	ln -s $(libcapdb.DLL).$(PACKAGE_VERSION) $(libcapdb.DLL) || exit $$?; \
+	ln -s $(libcapdb.DLL).$(PACKAGE_VERSION) $(libcapdb.DLL).0 || exit $$?; \
+	ls -la $(libcapdb.DLL) $(libcapdb.DLL).[a03]*; \
+	if [ -e $(libcapdb.DLL).0.8.6 ]; then \
+		echo "ACHTUNG: legacy libtool-compatible install found. Re-linking it..."; \
+		rm -f libcapdb.la $(libcapdb.DLL).0.8.6 || exit $$?; \
+		ln -s $(libcapdb.DLL).$(PACKAGE_VERSION) $(libcapdb.DLL).0.8.6 || exit $$?; \
+		ls -la $(libcapdb.DLL).0.8.6; \
+	elif [ x1 = "x$(INSTALL_SO_086_LINK)" ]; then \
+		echo "ACHTUNG: installing legacy libtool-style links because INSTALL_SO_086_LINK=1"; \
+		rm -f libcapdb.la $(libcapdb.DLL).0.8.6 || exit $$?; \
+		ln -s $(libcapdb.DLL).$(PACKAGE_VERSION) $(libcapdb.DLL).0.8.6 || exit $$?; \
+		ls -la $(libcapdb.DLL).0.8.6; \
+	fi
+
+install-dll-msys: install-dll-out-implib $(install-dir.bin)
+	$(INSTALL) $(libcapdb.DLL) "$(install-dir.bin)"
+# ----------------------------------------------^^^ yes, bin
+# Each of {msys,mingw,cygwin} uses a different name for the DLL, but
+# that is already accounted for via $(libcapdb.DLL).
+install-dll-mingw:  install-dll-msys
+install-dll-cygwin: install-dll-msys
+
+install-dll-darwin: $(install-dir.lib) $(libcapdb.DLL)
+	$(INSTALL) $(libcapdb.DLL) "$(install-dir.lib)"
+	@echo "Setting up $(libcapdb.DLL) version symlinks..."; \
+	cd "$(install-dir.lib)" || exit $$?; \
+	rm -f libcapdb.0$(T.dll) libcapdb.$(PACKAGE_VERSION)$(T.dll) || exit $$?; \
+	dllname=libcapdb.$(PACKAGE_VERSION)$(T.dll); \
+	mv $(libcapdb.DLL) $$dllname || exit $$?; \
+	ln -s $$dllname $(libcapdb.DLL) || exit $$?; \
+	ln -s $$dllname libcapdb.0$(T.dll) || exit $$?; \
+	ls -la $$dllname $(libcapdb.DLL) libcapdb.0$(T.dll)
+
+install-dll-1: install-dll-$(libcapdb.DLL.install-rules)
+install-dll-0 install-dll-:
+install-dll: install-dll-$(ENABLE_LIB_SHARED)
+install: install-dll
+
+install-lib-1: $(install-dir.lib) $(libcapdb.LIB)
+	$(INSTALL.noexec) $(libcapdb.LIB) "$(install-dir.lib)"
+install-lib-0 install-lib-:
+install-lib: install-lib-$(ENABLE_LIB_STATIC)
+install: install-lib
+
+#
+# Flags to link the shell app either directly against capdb.c
+# (ENABLE_STATIC_SHELL==1) or libcapdb.so (ENABLE_STATIC_SHELL==0).
+#
+# Maintenance reminder: placement of $(LDFLAGS) is more relevant for
+# some platforms than others:
+# https://sqlite.org/forum/forumpost/d80ecdaddd
+ENABLE_STATIC_SHELL = @ENABLE_STATIC_SHELL@
+capdb-shell-link-flags.1 = $(TOP)/capdb.c $(LDFLAGS) $(LDFLAGS.libcapdb)
+capdb-shell-link-flags.0 = $(LDFLAGS) -L. -lcapdb $(LDFLAGS.zlib) $(LDFLAGS.math)
+capdb-shell-deps.1 = $(TOP)/capdb.c
+capdb-shell-deps.0 = $(libcapdb.DLL)
+#
+# STATIC_CLI_SHELL = 1 to statically link capdb$(T.exe), else
+# 0. Requires static versions of all requisite libraries. Primarily
+# intended for use with static-friendly environments like Alpine
+# Linux.
+#
+STATIC_CLI_SHELL = @STATIC_CLI_SHELL@
+#
+# capdb-shell-static.flags.N = N is $(STATIC_CLI_SHELL)
+#
+capdb-shell-static.flags.1 = -static
+capdb-shell-static.flags.0 =
+capdb$(T.exe): $(TOP)/shell.c $(capdb-shell-deps.$(ENABLE_STATIC_SHELL))
+	$(CC) -o $@ \
+		$(TOP)/shell.c $(capdb-shell-link-flags.$(ENABLE_STATIC_SHELL)) \
+		$(capdb-shell-static.flags.$(STATIC_CLI_SHELL)) \
+		-I. $(OPT_FEATURE_FLAGS) $(SHELL_OPT) \
+		$(CFLAGS) $(CFLAGS.readline) $(CFLAGS.icu) \
+		$(LDFLAGS.readline)
+
+capdb$(T.exe)-1:
+capdb$(T.exe)-0: capdb$(T.exe)
+all: capdb$(T.exe)-$(HAVE_WASI_SDK)
+
+install-shell-0: capdb$(T.exe) $(install-dir.bin)
+	$(INSTALL) capdb$(T.exe) "$(install-dir.bin)"
+install-shell-1:
+install: install-shell-$(HAVE_WASI_SDK)
+
+install-headers: $(TOP)/capdb.h $(install-dir.include)
+	$(INSTALL.noexec) $(TOP)/capdb.h $(TOP)/capdbext.h "$(install-dir.include)"
+install: install-headers
+
+install-pc: capdb.pc $(install-dir.pkgconfig)
+	$(INSTALL.noexec) capdb.pc "$(install-dir.pkgconfig)"
+install: install-pc
+
+install-man1: $(TOP)/capdb.1 $(install-dir.man1)
+	$(INSTALL.noexec) $(TOP)/capdb.1 "$(install-dir.man1)"
+install: install-man1
+
+clean:
+	rm -f *.o capdb$(T.exe)
+	rm -f $(libcapdb.LIB) $(libcapdb.DLL) libcapdb$(T.dll).a
+
+distclean: clean
+	rm -f jimsh0$(T.exe) config.* capdb.pc capdb_cfg.h Makefile
+
+DIST_FILES := \
+  README.txt VERSION \
+  auto.def autosetup configure tea \
+  capdb.h capdb.c shell.c capdbext.h \
+  Makefile.in Makefile.msc Makefile.fallback make.bat \
+  capdb.rc capdbrc.h Replace.cs \
+  capdb.pc.in capdb.1
+
+#
+# Maintenance note: dist_name must be sqlite-$(PACKAGE_VERSION) so
+# that tool/mkautoconfamal.sh knows how to find it.
+#
+dist_name = sqlite-$(PACKAGE_VERSION)
+dist_tarball = $(dist_name).tar.gz
+dist:
+	rm -fr $(dist_name)
+	mkdir -p $(dist_name)
+	cp -rp $(DIST_FILES) $(dist_name)/.
+	tar czf $(dist_tarball) $(dist_name)
+	rm -fr $(dist_name)
+	ls -l $(dist_tarball)

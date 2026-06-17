@@ -1,0 +1,105 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH CAPDB-SERVER 1 "June 2026" "CapDB 3.54.0" "User Commands"
+.SH NAME
+capdb-server \- CapDB TLS SQL server
+.SH SYNOPSIS
+.B capdb-server
+[\fIoptions\fR]
+.SH DESCRIPTION
+.B capdb-server
+accepts client connections over TLS (or plain TCP in insecure mode),
+authenticates them, and executes SQL against database files under a
+configured root directory. Each database path uses a
+.BR capdb_pool (3)
+connection pool on the server side.
+.PP
+Clients connect with the
+.B capdb://
+URI scheme using
+.BR capdb (1)
+or
+.BR libcapdb_client .
+.SH OPTIONS
+.TP
+.B \-\-listen \fIADDR:PORT\fR
+Address and port to bind. Default:
+.BR 0.0.0.0:5432 .
+.TP
+.B \-\-cert \fIFILE\fR
+Server TLS certificate (PEM). Required unless
+.B \-\-insecure
+is set.
+.TP
+.B \-\-key \fIFILE\fR
+Server TLS private key (PEM). Required unless
+.B \-\-insecure
+is set.
+.TP
+.B \-\-ca \fIFILE\fR
+Optional client CA bundle for mutual TLS.
+.TP
+.B \-\-auth-file \fIFILE\fR
+Authentication file (required). One token per line, or
+.I user:password
+lines.
+.TP
+.B \-\-db-root \fIDIR\fR
+Required jail directory; all opened database paths must resolve under this
+directory.
+.TP
+.B \-\-pool-min \fIN\fR
+Minimum connections per pool (default 1).
+.TP
+.B \-\-pool-max \fIN\fR
+Maximum connections per pool (default 8).
+.TP
+.B \-\-insecure
+Disable TLS (development only). Clients must pass
+.B insecure=1
+in the URI.
+.TP
+.BR \-h ", " \-\-help
+Print usage and exit.
+.SH EXAMPLE
+.sp
+.nf
+capdb-server \\
+  \-\-listen 127.0.0.1:5432 \\
+  \-\-cert server.pem \-\-key server.key \\
+  \-\-auth-file /etc/capdb/tokens.txt \\
+  \-\-db-root /var/lib/capdb/databases
+.fi
+.sp
+Development (no TLS):
+.sp
+.nf
+capdb-server \\
+  \-\-listen 127.0.0.1:5432 \\
+  \-\-auth-file ./tokens.txt \\
+  \-\-db-root ./data \\
+  \-\-insecure
+.fi
+.sp
+Client:
+.sp
+.nf
+capdb 'capdb://127.0.0.1:5432/app.db?token=SECRET&insecure=1'
+.fi
+.SH SIGNALS
+On
+.B SIGINT
+or
+.B SIGTERM
+the server stops accepting new connections and shuts down gracefully.
+.SH FILES
+.TP
+.I /etc/capdb/tokens.txt
+Typical auth-file location (site-specific).
+.SH SEE ALSO
+.BR capdb (1),
+.BR capdbtest (1),
+.BR ext/capdb/README.md ,
+.BR ext/pool/README.md ,
+.BR BUILD.md
+.SH AUTHOR
+CapDB project.

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libssl-dev zlib1g-dev python3 default-jdk-headless
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCAPDB_ENABLE_POOL=ON \
+            -DCAPDB_ENABLE_NETWORK=ON \
+            -DCAPDB_WARNINGS=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Warning build (CapDB-owned targets, -Werror)
+        run: CAPDB_WERROR=ON ./tools/warnings.sh
+
+      - name: Test
+        run: cd build && ctest --output-on-failure
+
+      - name: Codegen parity
+        run: python3 tools/py/tests/test_codegen_parity.py

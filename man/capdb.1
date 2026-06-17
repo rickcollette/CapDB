@@ -1,0 +1,188 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH CAPDB 1 "June 2026" "CapDB 3.54.0" "User Commands"
+.SH NAME
+capdb \- CapDB command-line interface
+.SH SYNOPSIS
+.B capdb
+.RI [ options ]
+.RI [ databasefile ]
+.RI [ SQL ]
+.SH DESCRIPTION
+.B capdb
+is the interactive and batch command-line front-end to
+.BR CapDB ,
+a hard fork of the SQLite database engine with optional connection pooling
+and TLS remote access.
+.PP
+In interactive mode,
+.B capdb
+reads SQL and dot-commands, executes them against a database, and displays
+results in several formats. In batch mode, SQL passed on the command line or
+via standard input is executed and the process exits.
+.PP
+Local database files are opened by path. Remote databases use the
+.B capdb://
+URI scheme (see
+.BR "REMOTE DATABASES" ).
+.SH OPTIONS
+Common options include:
+.TP
+.B \-batch
+Run in batch mode (no interactive prompts).
+.TP
+.B \-init \fIFILE\fR
+Read dot-commands from
+.I FILE
+before processing other input.
+.TP
+.B \-line
+Set output mode to one column per line.
+.TP
+.B \-list
+Set output mode to one row per line with column separators (default).
+.TP
+.B \-header
+Turn column headers on.
+.TP
+.B \-noheader
+Turn column headers off.
+.TP
+.B \-column
+Set output mode to aligned columns.
+.TP
+.B \-csv
+Set output mode to CSV.
+.TP
+.B \-json
+Set output mode to JSON.
+.TP
+.B \-version
+Print the CapDB library version and exit.
+.TP
+.B \-help
+Print a usage summary and exit.
+.PP
+Run
+.B capdb \-help
+for the full option list available in your build.
+.SH INTERACTIVE USE
+To open a local database:
+.sp
+$ \fBcapdb mydata.db\fR
+.sp
+Example session:
+.sp
+.nf
+capdb> CREATE TABLE memos(text, priority INTEGER);
+capdb> INSERT INTO memos VALUES('deliver project description', 10);
+capdb> INSERT INTO memos VALUES('lunch with Christine', 100);
+capdb> SELECT * FROM memos;
+deliver project description|10
+lunch with Christine|100
+.fi
+.sp
+If no database file is named on the command line, use SQL
+.B ATTACH
+commands to open additional files in the same session.
+.SH REMOTE DATABASES
+When built with network support (\fBCAPDB_ENABLE_NETWORK\fR), the CLI accepts
+\fBcapdb://\fR URIs as the database argument:
+.sp
+.nf
+capdb 'capdb://HOST:PORT/path/to/db?token=SECRET&insecure=1'
+.fi
+.sp
+Query parameters:
+.TP
+.B token=\fISTRING\fR
+Shared-secret token (must match a line in the server's auth file).
+.TP
+.B user=\fINAME\fR \fBpassword=\fIPASS\fR
+Alternative user/password authentication.
+.TP
+.B ca=\fIFILE\fR
+PEM file for TLS certificate verification.
+.TP
+.B insecure=1
+Disable TLS verification (development only; server must also run with
+.B \-\-insecure\fR).
+.PP
+Default remote port is
+.BR 5432 .
+See
+.BR capdb-server (1)
+and
+.BR ext/capdb/README.md .
+.SH DOT-COMMANDS
+Interactive meta-commands begin with a dot (.). Examples include
+.BR .help ,
+.BR .tables ,
+.BR .schema ,
+and
+.BR .quit .
+Run
+.B .help
+inside the shell for the complete list (options vary by build).
+.SH INIT FILE
+At startup the shell reads an initialization file for dot-commands and
+settings, in this order:
+.IP "1." 4
+Default prompt and output settings.
+.IP "2." 4
+\fB$XDG_CONFIG_HOME/capdb/sqliterc\fR if
+.B XDG_CONFIG_HOME
+is set, else
+\fB~/.config/capdb/sqliterc\fR, else
+\fB~/.sqliterc\fR.
+.IP "3." 4
+The file named by
+.B \-init
+if present.
+.IP "4." 4
+Remaining command-line options.
+.SH HISTORY FILE
+Interactive command history is stored in the file named by
+.B CAPDB_HISTORY
+if set; otherwise
+\fB$XDG_STATE_HOME/capdb/history\fR,
+\fB~/.local/state/capdb/history\fR,
+or
+\fB~/.sqlite_history\fR
+as fallbacks.
+.SH ENVIRONMENT
+.TP
+.B CAPDB_HISTORY
+Path to the interactive history file.
+.TP
+.B CAPDB_PS1
+Override the main interactive prompt.
+.TP
+.B CAPDB_PS2
+Override the continuation prompt.
+.TP
+.B XDG_CONFIG_HOME
+Base directory for
+.BR capdb/sqliterc .
+.TP
+.B XDG_STATE_HOME
+Base directory for history file location.
+.SH FILES
+.TP
+.I ~/.config/capdb/sqliterc
+User initialization file (preferred location).
+.TP
+.I ~/.sqliterc
+Legacy initialization file fallback.
+.SH SEE ALSO
+.BR capdb-server (1),
+.BR capdb_pool (3),
+.BR ext/capdb/README.md ,
+.BR BUILD.md ,
+.BR docs/CAPDB.md ,
+https://sqlite.org/cli.html
+.SH AUTHOR
+This manual page was derived from the upstream SQLite
+.BR sqlite3 (1)
+page and updated for CapDB.
+Upstream authors include Andreas Rottmann, Bill Bumgarner, and Laszlo
+Boszormenyi; CapDB fork maintenance by the CapDB project.

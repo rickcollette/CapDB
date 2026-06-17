@@ -1,0 +1,37 @@
+CompileFlags:
+  CompilationDatabase: build
+
+---
+If:
+  PathMatch: extensions/.*\.(c|h)
+CompileFlags:
+  Add:
+    - -std=c99
+    - -Ibuild/generated
+    - -Icore
+    - -Iextensions/intck
+    - -Iextensions/misc
+    - -Iextensions/rtree
+    - -Iextensions/fts3
+    - -Iextensions/session
+    - -DCAPDB_THREADSAFE=1
+    - -D_HAVE_CAPDB_CONFIG_H
+    - -DBUILD_capdb
+    - -DCAPDB_ENABLE_POOL
+    - -DCAPDB_ENABLE_NETWORK
+    - -DCAPDB_ENABLE_FTS5
+
+---
+If:
+  PathMatch: core/.*\.(c|h)
+CompileFlags:
+  Add:
+    - -std=c99
+    - -Ibuild/generated
+    - -Icore
+    - -DCAPDB_THREADSAFE=1
+    - -D_HAVE_CAPDB_CONFIG_H
+    - -DBUILD_capdb
+    - -DCAPDB_ENABLE_POOL
+    - -DCAPDB_ENABLE_NETWORK
+    - -DCAPDB_ENABLE_FTS5

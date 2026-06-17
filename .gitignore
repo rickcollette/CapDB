@@ -1,0 +1,83 @@
+# --- Build trees (CMake out-of-source and variants) ---
+/build/
+/build-*/
+/dist/
+/out/
+cmake-build-*/
+
+# IDE compile database (symlink or copy from build/)
+compile_commands.json
+
+# CTest logs when run from repo root instead of build/
+Testing/
+
+# --- CapDB / capsuite ephemeral test directories (created in cwd) ---
+capdb_data_*/
+capdb_data_manual_*/
+capdb_idle_*/
+capdb_pwd_*/
+capdb_reuse_*/
+
+# --- SQLite database and sidecar files ---
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*-journal
+
+# --- Compiled objects and libraries ---
+*.o
+*.obj
+*.a
+*.la
+*.lo
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# --- Codegen / parser debug output (canonical copies live under core/ or build/) ---
+/parse.sql
+/fts5parse.sql
+parse.out
+fts5parse.out
+
+# --- Coverage, profiling, sanitizers ---
+*.gcno
+*.gcda
+*.prof
+*.profraw
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.Python
+
+# --- Local secrets and env (never commit tokens or keys) ---
+.env
+.env.*
+auth.txt
+*.pem.local
+*.key.local
+
+# --- Editor / IDE local state ---
+.cursor/
+*.plan.md
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.log
+CLAUDE.md
+AGENTS.md
+
+
+# --- Fossil SCM artifact (upstream SQLite; not used with git) ---
+manifest.tags

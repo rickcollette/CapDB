@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
+    <title>capdb Module Symbols</title>
+    <style>
+      body {
+          font-size: 12.5pt;
+          padding-bottom: 1em;
+      }
+      </style>
+  </head>
+  <body>
+<div class="fossil-doc" data-title="capdb Module Symbols"><!-- EXTRACT_BEGIN -->
+<!--
+    The part of this doc wrapped in div.fossil-doc gets snipped out
+    from the canonical copy in the main tree (ext/wasm/module-symbols.html)
+    and added to the wasm docs repository, where it's served from
+    fossil.
+-->
+  <style>
+    .pseudolist {
+        column-count: auto;
+        column-width: 12rem;
+        column-gap: 1.5em;
+        width: 90%;
+        margin: auto;
+    }
+    .pseudolist.wide {
+        column-width: 21rem;
+    }
+    .pseudolist.wide2 {
+        column-width: 25rem;
+    }
+    .pseudolist > span {
+        font-family: monospace;
+        margin: 0.25em 0;
+        display: block;
+    }
+    .pseudolist.wrap-anywhere {
+        overflow-wrap: anywhere;
+    }
+    .warning { color: firebrick }
+    .error { color: firebrick; background-color: yellow}
+    .hidden, .initially-hidden {
+        position: absolute !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        display: none !important;
+    }
+    h1::before, h2::before, h3::before, h4::before {
+        /* Remove automatic numbering */
+        content: "" !important;
+        background-color: transparent !important;
+        margin: 0 !important;
+        border: 0 !important;
+        padding: 0 !important;
+    }
+    .func-wasm {}
+    .func-wasm::after {
+        content: "WASM";
+        color: saddlebrown;
+        /* ^^^^ the color must be legible in both "bright" and "dark"
+           s    ite themes. */
+        font-size: 0.65em;
+    /* baseline-shift: super; */
+        vertical-align: super;
+    }
+  </style>
+  <p id='module-load-status'><strong>Loading WASM module...</strong>
+    If this takes "a long time" it may have failed and the browser's
+    dev console may contain hints as to why.
+  </p>
+
+  <p>
+    This page lists the SQLite3 APIs exported
+    by <code>capdb.wasm</code> and exposed to clients
+    by <code>capdb.js</code>. These lists are generated dynamically
+    by loading the JS/WASM module and introspecting it, with the following
+    caveats:
+  </p>
+
+  <ul>
+    <li>Some APIs are explicitly filtered out of these lists because
+      they are strictly for internal use within the JS/WASM APIs and
+      its own test code.
+    </li>
+    <li>This page runs in the main UI thread so cannot see features
+      which are only available in a Worker thread. If this page were
+      to function via a Worker, it would not be able to see
+      functionality only available in the main thread. Either way, it
+      would be missing certain APIs.
+    </li>
+  </ul>
+
+  <div class='initially-hidden'>
+
+    <p>This page exposes a global symbol named <code>capdb</code>
+      which can be inspected using the browser's dev tools.
+    </p>
+
+    <p>Jump to...</p>
+    <ul>
+      <li><a href='#capdb-namespace'><code>capdb</code> namespace</a></li>
+      <li><a href='#capdb-version'><code>capdb.version</code> object</a></li>
+      <li><a href='#capdb-functions'><code>capdb_...()</code> functions</a></li>
+      <li><a href='#capdb-constants'><code>CAPDB_...</code> constants</a></li>
+      <li><a href='#capdb.oo1'><code>capdb.oo1</code> namespace</a>
+        <!--ul>
+          <li><a href='#capdb.oo1.DB'><code>capdb.oo1.DB</code></a></li>
+          <li><a href='#capdb.oo1.Stmt'><code>capdb.oo1.Stmt</code></a></li>
+        </ul-->
+      </li>
+      <li><a href='#capdb.wasm'><code>capdb.wasm</code> namespace</a></li>
+      <li><a href='#capdb.wasm.pstack'><code>capdb.wasm.pstack</code> namespace</a></li>
+      <li><a href='#capdb.wasm.ptr'><code>capdb.wasm.ptr</code> namespace</a></li>
+      <li><a href='#compile-options'>Compilation options used in this module build</a></li>
+    </ul>
+
+    <a id="capdb-namespace"></a>
+    <h1><code>capdb</code> Namespace</h1>
+    <p>
+      The <code>capdb</code> namespace object exposes the following...
+    </p>
+    <div id='list-namespace' class='pseudolist'></div>
+
+    <a id="capdb-version"></a>
+    <h1><code>capdb.version</code> Object</h1>
+    <p>
+      The <code>capdb.version</code> object exposes the following...
+    </p>
+    <div id='list-version' class='pseudolist wide wrap-anywhere'></div>
+
+    <a id="capdb-functions"></a>
+    <h1><code>capdb_...()</code> Function List</h1>
+
+    <p>The <code>capdb.capi</code> namespace exposes the following
+      <a href='https://sqlite.org/c3ref/funclist.html'><code>capdb_...()</code>
+        functions</a>...
+    </p>
+    <div id='list-functions' class='pseudolist wide'></div>
+    <p>
+      <code class='func-wasm'></code> = function is specific to the JS/WASM
+      bindings, not part of the C API.
+    </p>
+
+    <a id="capdb-constants"></a>
+    <h1><code>CAPDB_...</code> Constants</h1>
+
+    <p>The <code>capdb.capi</code> namespace exposes the following
+      <a href='https://sqlite.org/c3ref/constlist.html'><code>CAPDB_...</code>
+        constants</a>...
+    </p>
+    <div id='list-constants' class='pseudolist wide'></div>
+
+    <a id="capdb.oo1"></a>
+    <h1><code>capdb.oo1</code> Namespace</h1>
+    <p>
+      The <code>capdb.oo1</code> namespace exposes the following...
+    </p>
+    <div id='list-oo1' class='pseudolist'></div>
+
+    <a id="capdb.wasm"></a>
+    <h1><code>capdb.wasm</code> Namespace</h1>
+    <p>
+      The <code>capdb.wasm</code> namespace exposes the
+      following...
+    </p>
+    <div id='list-wasm' class='pseudolist'></div>
+
+    <a id="capdb.wasm.pstack"></a>
+    <h1><code>capdb.wasm.pstack</code> Namespace</h1>
+    <p>
+      The <code>capdb.wasm.pstack</code> namespace exposes the
+      following...
+    </p>
+    <div id='list-wasm-pstack' class='pseudolist'></div>
+
+    <a id="capdb.wasm.ptr"></a>
+    <h1><code>capdb.wasm.ptr</code> Namespace</h1>
+    <p>
+      The <code>capdb.wasm.ptr</code> namespace exposes the
+      following...
+    </p>
+    <div id='list-wasm-ptr' class='pseudolist'></div>
+
+    <a id="compile-options"></a>
+    <h1>Compilation Options</h1>
+    <p>
+      <code>CAPDB_...</code> compilation options used in this build
+      of <code>capdb.wasm</code>...
+    </p>
+    <div id='list-compile-options' class='pseudolist wide2'></div>
+
+  </div><!-- .initially-hidden -->
+  <script src="jswasm/capdb.js">/* This tag MUST be inside the
+  fossil-doc block so that this part can work without modification in
+  the wasm docs repo.  */</script>
+  <script>(async function(){
+    const apiLinks = Object.assign(Object.create(null),{
+        capdb_aggregate_context: 'www:/c3ref/aggregate_context.html',
+        capdb_auto_extension: 'wasm:/api-c-style.md#auto-extension',
+        capdb_bind_blob: 'www:/c3ref/bind_blob.html',
+        capdb_bind_double: 'www:/c3ref/bind_blob.html',
+        capdb_bind_int: 'www:/c3ref/bind_blob.html',
+        capdb_bind_int64: 'www:/c3ref/bind_blob.html',
+        capdb_bind_null: 'www:/c3ref/bind_blob.html',
+        capdb_bind_parameter_count: 'www:/c3ref/bind_parameter_count.html',
+        capdb_bind_parameter_index: 'www:/c3ref/bind_parameter_index.html',
+        capdb_bind_pointer: 'www:/c3ref/bind_blob.html',
+        capdb_bind_text: 'www:/c3ref/bind_blob.html',
+        capdb_busy_handler: 'www:/c3ref/busy_handler.html',
+        capdb_busy_timeout: 'www:/c3ref/busy_timeout.html',
+        capdb_cancel_auto_extension: 'wasm:/api-c-style.md#auto-extension',
+        capdb_changes: 'www:/c3ref/changes.html',
+        capdb_changes64: 'www:/c3ref/changes.html',
+        capdb_clear_bindings: 'www:/c3ref/clear_bindings.html',
+        capdb_close_v2: 'www:/c3ref/close.html',
+        capdb_collation_needed: 'www:/c3ref/collation_needed.html',
+        capdb_column_blob: 'www:/c3ref/column_blob.html',
+        capdb_column_bytes: 'www:/c3ref/column.html',
+        capdb_column_count: 'www:/c3ref/column_count.html',
+        capdb_column_double: 'www:/c3ref/column_blob.html',
+        capdb_column_int: 'www:/c3ref/column_blob.html',
+        capdb_column_int64: 'www:/c3ref/column_blob.html',
+        capdb_column_name: 'www:/c3ref/column_name.html',
+        capdb_column_text: 'www:/c3ref/column_blob.html',
+        capdb_column_type: 'www:/c3ref/column_blob.html',
+        capdb_column_value: 'www:/c3ref/column_blob.html',
+        capdb_commit_hook: 'wasm:/api-c-style.md#hook-api',
+        capdb_compileoption_get: 'www:/c3ref/compileoption_get.html',
+        capdb_compileoption_used: 'www:/c3ref/compileoption_get.html',
+        capdb_complete: 'www:/c3ref/complete.html',
+        capdb_config: 'www:/c3ref/config.html',
+        capdb_context_db_handle: 'www:/c3ref/context_db_handle.html',
+        capdb_create_collation: 'www:/c3ref/create_collation.html',
+        capdb_create_collation_v2: 'www:/c3ref/create_collation.html',
+        capdb_create_function: 'wasm:/api-c-style.md#capdb_create_function',
+        capdb_create_function_v2: 'wasm:/api-c-style.md#capdb_create_function',
+        capdb_create_module: 'www:/c3ref/create_module.html',
+        capdb_create_module_v2: 'www:/c3ref/create_module.html',
+        capdb_create_window_function: 'wasm:/api-c-style.md#capdb_create_function',
+        capdb_db_config: 'wasm:/api-c-style.md#capdb_db_config',
+        capdb_data_count: 'www:/c3ref/data_count.html',
+        capdb_db_filename: 'www:/c3ref/db_filename.html',
+        capdb_db_handle: 'www:/c3ref/db_handle.html',
+        capdb_db_name: 'www:/c3ref/db_name.html',
+        capdb_db_status: 'www:/c3ref/db_status.html',
+        capdb_declare_vtab: 'www:/c3ref/declare_vtab.html',
+        capdb_deserialize: 'wasm:/api-c-style.md#capdb_deserialize',
+        capdb_drop_modules: 'www:/c3ref/drop_modules.html',
+        capdb_errcode: 'www:/c3ref/errcode.html',
+        capdb_errmsg: 'www:/c3ref/errcode.html',
+        capdb_error_offset: 'www:/c3ref/error_offset.html',
+        capdb_errstr: 'www:/c3ref/errcode.html',
+        capdb_exec: 'wasm:/api-c-style.md#capdb_exec',
+        capdb_expanded_sql: 'www:/c3ref/expanded_sql.html',
+        capdb_extended_errcode: 'www:/c3ref/errcode.html',
+        capdb_extended_result_codes: 'www:/c3ref/extended_result_codes.html',
+        capdb_file_control: 'www:/c3ref/file_control.html',
+        capdb_finalize: 'www:/c3ref/finalize.html',
+        capdb_free: 'www:/c3ref/free.html',
+        capdb_get_auxdata: 'www:/c3ref/get_auxdata.html',
+        capdb_initialize: 'www:/c3ref/initialize.html',
+        capdb_keyword_check: 'www:/c3ref/keyword_check.html',
+        capdb_keyword_count: 'www:/c3ref/keyword_check.html',
+        capdb_keyword_name: 'www:/c3ref/keyword_check.html',
+        capdb_last_insert_rowid: 'www:/c3ref/last_insert_rowid.html',
+        capdb_libversion: 'www:/c3ref/libversion.html',
+        capdb_libversion_number: 'www:/c3ref/libversion.html',
+        capdb_limit: 'www:/c3ref/limit.html',
+        capdb_malloc: 'www:/c3ref/free.html',
+        capdb_malloc64: 'www:/c3ref/free.html',
+        capdb_msize: 'www:/c3ref/free.html',
+        capdb_open: 'www:/c3ref/open.html',
+        capdb_open_v2: 'www:/c3ref/open.html',
+        capdb_overload_function: 'www:/c3ref/overload_function.html',
+        capdb_prepare_v2: 'wasm:/api-c-style.md#capdb_prepare_v2',
+        capdb_prepare_v3: 'wasm:/api-c-style.md#capdb_prepare_v2',
+        capdb_progress_handler: 'www:/c3ref/progress_handler.html',
+        capdb_randomness: 'wasm:/api-c-style.md#capdb_randomness',
+        capdb_realloc: 'www:/c3ref/free.html',
+        capdb_realloc64: 'www:/c3ref/free.html',
+        capdb_reset: 'www:/c3ref/reset.html',
+        capdb_reset_auto_extension: 'wasm:/api-c-style.md#auto-extension',
+        capdb_result_blob: 'www:/c3ref/result_blob.html',
+        capdb_result_double: 'www:/c3ref/result_blob.html',
+        capdb_result_error: 'www:/c3ref/result_blob.html',
+        capdb_result_error_code: 'www:/c3ref/result_blob.html',
+        capdb_result_error_nomem: 'www:/c3ref/result_blob.html',
+        capdb_result_error_toobig: 'www:/c3ref/result_blob.html',
+        capdb_result_int: 'www:/c3ref/result_blob.html',
+        capdb_result_int64: 'www:/c3ref/result_blob.html',
+        capdb_result_null: 'www:/c3ref/result_blob.html',
+        capdb_result_pointer: 'www:/c3ref/result_blob.html',
+        capdb_result_subtype: 'www:/c3ref/result_subtype.html',
+        capdb_result_text: 'www:/c3ref/result_blob.html',
+        capdb_result_zeroblob: 'www:/c3ref/result_blob.html',
+        capdb_result_zeroblob64: 'www:/c3ref/result_blob.html',
+        capdb_rollback_hook: 'wasm:/api-c-style.md#hook-api',
+        capdb_serialize: 'www:/c3ref/serialize.html',
+        capdb_set_authorizer: 'wasm:/api-c-style.md#capdb_set_authorizer',
+        capdb_set_auxdata: 'www:/c3ref/get_auxdata.html',
+        capdb_set_last_insert_rowid: 'www:/c3ref/set_last_insert_rowid',
+        capdb_shutdown: 'www:/c3ref/initialize.html',
+        capdb_sourceid: 'www:/c3ref/libversion.html',
+        capdb_sql: 'www:/c3ref/expanded_sql.html',
+        capdb_status: 'www:/c3ref/status.html',
+        capdb_status64: 'www:/c3ref/status.html',
+        capdb_step: 'www:/c3ref/step.html',
+        capdb_stmt_isexplain: 'www:/c3ref/stmt_isexplain.html',
+        capdb_stmt_readonly: 'www:/c3ref/stmt_readonly.html',
+        capdb_stmt_status: 'www:/c3ref/stmt_status.html',
+        capdb_strglob: 'www:/c3ref/strglob.html',
+        capdb_stricmp: 'www:/c3ref/stricmp.html',
+        capdb_strlike: 'www:/c3ref/strlike.html',
+        capdb_strnicmp: 'www:/c3ref/strnicmp.html',
+        capdb_table_column_metadata: 'www:/c3ref/table_column_metadata.html',
+        capdb_total_changes: 'www:/c3ref/total_changes.html',
+        capdb_total_changes64: 'www:/c3ref/total_changes.html',
+        capdb_trace_v2: 'www:/c3ref/trace_v2.html',
+        capdb_txn_state: 'www:/c3ref/txn_state.html',
+        capdb_update_hook: 'wasm:/api-c-style.md#hook-api',
+        capdb_uri_boolean: 'www:/c3ref/uri_boolean.html',
+        capdb_uri_int64: 'www:/c3ref/uri_boolean.html',
+        capdb_uri_key: 'www:/c3ref/uri_boolean.html',
+        capdb_uri_parameter: 'www:/c3ref/uri_boolean.html',
+        capdb_user_data: 'www:/c3ref/user_data.html',
+        capdb_value_blob: 'www:/c3ref/value_blob.html',
+        capdb_value_bytes: 'www:/c3ref/value_blob.html',
+        capdb_value_double: 'www:/c3ref/value_blob.html',
+        capdb_value_dup: 'www:/c3ref/value_dup.html',
+        capdb_value_free: 'www:/c3ref/value_dup.html',
+        capdb_value_frombind: 'www:/c3ref/value_blob.html',
+        capdb_value_int: 'www:/c3ref/value_blob.html',
+        capdb_value_int64: 'www:/c3ref/value_blob.html',
+        capdb_value_nochange: 'www:/c3ref/value_blob.html',
+        capdb_value_numeric_type: 'www:/c3ref/value_blob.html',
+        capdb_value_pointer: 'www:/c3ref/value_blob.html',
+        capdb_value_subtype: 'www:/c3ref/value_subtype.html',
+        capdb_value_text: 'www:/c3ref/value_blob.html',
+        capdb_value_type: 'www:/c3ref/value_blob.html',
+        capdb_vfs_find: 'www:/c3ref/vfs_find.html',
+        capdb_vfs_register: 'www:/c3ref/vfs_find.html',
+        capdb_vfs_unregister: 'www:/c3ref/vfs_find.html',
+        capdb_vtab_collation: 'www:/c3ref/vtab_collation.html',
+        capdb_vtab_config: 'www:/c3ref/vtab_config.html',
+        capdb_vtab_distinct: 'www:/c3ref/vtab_distinct.html',
+        capdb_vtab_in: 'www:/c3ref/vtab_in.html',
+        capdb_vtab_in_first: 'www:/c3ref/vtab_in_first.html',
+        capdb_vtab_in_next: 'www:/c3ref/vtab_in_next.html',
+        capdb_vtab_nochange: 'www:/c3ref/vtab_nochange.html',
+        capdb_vtab_on_conflict: 'www:/c3ref/vtab_on_conflict.html',
+        capdb_vtab_rhs_value: 'www:/c3ref/vtab_rhs_value.html',
+
+        capdb_column_js: 'wasm:/api-c-style.md#capdb_column_js',
+        capdb_js_aggregate_context: 'wasm:/api-c-style.md#capdb_js_aggregate_context',
+        capdb_js_db_export: 'wasm:/api-c-style.md#capdb_js_db_export',
+        capdb_js_db_uses_vfs: 'wasm:/api-c-style.md#capdb_js_db_uses_vfs',
+        capdb_js_db_vfs: 'wasm:/api-c-style.md#capdb_js_db_vfs',
+        capdb_js_kvvfs_clear: 'wasm:/api-c-style.md#capdb_js_kvvfs',
+        capdb_js_kvvfs_size: 'wasm:/api-c-style.md#capdb_js_kvvfs',
+        capdb_js_posix_create_file: 'wasm:/api-c-style.md#capdb_js_posix_create_file',
+        capdb_js_rc_str: 'wasm:/api-c-style.md#capdb_js_rc_str',
+        capdb_js_vfs_create_file: 'wasm:/api-c-style.md#capdb_js_vfs_create_file',
+        capdb_js_vfs_list: 'wasm:/api-c-style.md#capdb_js_vfs_list',
+        capdb_result_error_js: 'wasm:/api-c-style.md#capdb_result_error_js',
+        capdb_result_js: 'wasm:/api-c-style.md#capdb_result_js',
+        capdb_value_to_js: 'wasm:/api-c-style.md#capdb_value_to_js',
+        capdb_values_to_js: 'wasm:/api-c-style.md#capdb_values_to_js',
+        
+        xform: (v)=>{
+            if(v){
+                return v.replace('www:','https://sqlite.org')
+                    .replace('wasm:','https://sqlite.org/wasm/doc/trunk');
+            }else{
+                return undefined;
+            }
+        }
+    });
+    const eNew = (tag,parent)=>{
+        const e = document.createElement(tag);
+        if(parent) parent.appendChild(e);
+        return e;
+    };
+    const eLi = (label,parent)=>{
+        const e = eNew('span',parent);
+        e.innerText = label;
+        return e;
+    };
+    const eLink = (label,url,parent)=>{
+        const w = eNew('span',parent);
+        const e = eNew('a',w);
+        if(url){
+            e.href = url;
+            e.target = 'capdb-api-docs';
+        }
+        e.innerText = label;
+        return w;
+    };
+    const E = (sel)=>document.querySelector(sel);
+    const EAll = (sel)=>document.querySelectorAll(sel);
+    const eFuncs = E('#list-functions'),
+          eConst = E('#list-constants');
+    const renderConst = function(name){
+        eLi(name, eConst);
+    };
+    const renderFunc = function(name){
+        let lbl = name+'()';
+        const e = eLink(lbl, apiLinks.xform(apiLinks[name]), eFuncs);
+        if(name.indexOf('_js')>0
+           || name.indexOf('_wasm')>0){
+            e.classList.add('func-wasm');
+        }
+    };
+    const renderGeneric = function(name,value,eParent){
+        let lbl;
+        if(value instanceof Function) lbl = name+'()';
+        else{
+            switch(typeof value){
+                case 'number': case 'boolean': case 'string':
+                    lbl = name+' = '+JSON.stringify(value);
+                    break;
+                default:
+                    lbl = name + ' ['+(typeof value)+']';
+            }
+        }
+        const e = eLi(lbl, eParent);
+        if(name.startsWith('capdb_wasm')){
+            e.classList.add('func-wasm');
+        }
+    };
+    const renderIt = async function(capdb){
+        self.capdb = capdb;
+        console.warn("capdb installed as global symbol self.capdb.");
+        const capi = capdb.capi, wasm = capdb.wasm;
+        const cmpIcase = (a,b)=>a.toLowerCase().localeCompare(b.toLowerCase());
+        const renderX = function(tgtElem, container, keys){
+            for(const k of keys.sort(cmpIcase)){
+                renderGeneric(k, container[k], tgtElem);
+            }
+        };
+        
+        const excludeNamespace = ['scriptInfo','StructBinder'];
+        renderX(
+            E('#list-namespace'), capdb,
+            Object.keys(capdb)
+                .filter((v)=>excludeNamespace.indexOf(v)<0)
+        );
+        renderX(
+            E('#list-version'), capdb.version,
+            Object.keys(capdb.version)
+        );
+
+        /* capdb_...() and CAPDB_... */
+        const lists = {c: [/*constants*/], f: [/*functions*/],
+                       s: [/*structs*/]};
+        /* Exclude these from the function list... */
+        const excludeCapi = [
+            // WASMFS stuff:
+            'capdb_wasmfs_filename_is_persistent',
+            'capdb_wasmfs_opfs_dir'
+        ];
+        for(const [k,v] of Object.entries(capi)){
+            if(k.startsWith('CAPDB_')){
+                lists.c.push(k);
+            }else if(k.startsWith('capdb_')){
+                if(excludeCapi.indexOf(k)>=0) continue;
+                if(v.structInfo){
+                    // assume this is a StructType-type.
+                    continue;
+                }
+                lists.f.push(k);
+            }
+        }
+        lists.c.sort().forEach(renderConst);
+        lists.f.sort().forEach(renderFunc);
+        lists.c = lists.f = null;
+
+        renderX(E('#list-oo1'), capdb.oo1,
+                Object.keys(capdb.oo1) );
+
+        const excludeWasm = ['ctype'];
+        renderX(E('#list-wasm'),
+                wasm, Object.keys(wasm).filter((v)=>{
+                    return !v.startsWith('capdb_wasm_')
+                        && excludeWasm.indexOf(v)<0;
+                }));
+        const psKeys = Object.keys(wasm.pstack);
+        psKeys.push('pointer','quota','remaining');
+        renderX(E('#list-wasm-pstack'), wasm.pstack, psKeys);
+
+        const pwKeys = Object.keys(wasm.ptr);
+        renderX(E('#list-wasm-ptr'), wasm.ptr, pwKeys);
+
+        const cou = wasm.compileOptionUsed();
+        //const cou2 = Object.create(null);
+        //Object.entries(cou).forEach((e)=>cou2['CAPDB_'+e[0]] = e[1]);
+        renderX(E('#list-compile-options'), cou, Object.keys(cou));
+    };
+
+    /**
+       This is a module object for use with the emscripten-installed
+       capdbInitModule() factory function.
+    */
+    const myModule = {
+        print: (...args)=>{console.log(...args)},
+        printErr: (...args)=>{console.error(...args)},
+        /**
+           Called by the Emscripten module init bits to report loading
+           progress. It gets passed an empty argument when loading is done
+           (after onRuntimeInitialized() and any this.postRun callbacks
+           have been run).
+        */
+        setStatus: function f(text){
+            if(!f.last){
+                f.last = { text: '', step: 0 };
+                f.ui = {
+                    status: E('#module-load-status')
+                };
+            }
+            if(text === f.last.text) return;
+            f.last.text = text;
+            ++f.last.step;
+            if(text) {
+                f.ui.status.classList.remove('hidden');
+                f.ui.status.innerText = text;
+            }else{
+                f.ui.status.classList.add('hidden');
+                EAll('.initially-hidden').forEach((e)=>{
+                    e.classList.remove('initially-hidden');
+                });
+            }
+        }
+    }/*myModule*/;
+    self.capdbInitModule(myModule).then(renderIt);
+})();</script>
+</div><!-- .fossil-doc EXTRACT_END -->
+</body></html>
