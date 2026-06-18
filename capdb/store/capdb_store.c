@@ -487,10 +487,12 @@ int capdb_volume_export_db(capdb_volume *p, const char *zOutPath){
 int capdb_volume_snapshot(capdb_volume *p, unsigned long long lsn,
                           char *zOutDir, int nOutDir){
   char zSnap[1024];
-  char zDest[1024];
+  char zDest[1024 + 16];
+  int n;
   if( p==0 || zOutDir==0 || nOutDir<=0 ) return CAPDB_MISUSE;
-  snprintf(zSnap, sizeof(zSnap), "%s/" CAPDB_STORE_DIR_SNAPSHOTS "/snap_%llu",
-           p->zPath, lsn);
+  n = snprintf(zSnap, sizeof(zSnap), "%s/" CAPDB_STORE_DIR_SNAPSHOTS "/snap_%llu",
+               p->zPath, lsn);
+  if( n<0 || (size_t)n>=sizeof(zSnap) ) return CAPDB_IOERR;
   if( storeMkdirP(zSnap) ) return CAPDB_IOERR;
   snprintf(zDest, sizeof(zDest), "%s/main.db", zSnap);
   return capdb_volume_export_db(p, zDest);
