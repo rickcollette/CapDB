@@ -70,58 +70,9 @@ Generated sources (`capdb.c`, `capdb.h`, `shell.c`) are produced at build time u
 
 ## Architecture
 
-```mermaid
-flowchart TB
-  classDef client fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
-  classDef transport fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#312e81
-  classDef pool fill:#ccfbf1,stroke:#0d9488,stroke-width:2px,color:#134e4a
-  classDef store fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
-  classDef repl fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#4c1d95
-
-  subgraph clients[" Clients "]
-    direction LR
-    CLI(["capdb CLI"])
-    SDK(["libcapdb_client"])
-    VFS(["capdbvfs · remote pages"])
-  end
-
-  subgraph primary[" Primary · capdb-server "]
-    direction TB
-    NET["TLS + capdb protocol"]
-    POOL["capdb_pool"]
-    STORE[("capdb_store / capdbstorevfs")]
-    REP["capdb_replication"]
-  end
-
-  subgraph replica[" Replica · capdb-server "]
-    direction TB
-    RNET["TLS + capdb protocol"]
-    RPOOL["capdb_pool"]
-    RSTORE[("capdb_store · read-only")]
-  end
-
-  CLI --> NET
-  SDK --> NET
-  VFS --> NET
-  NET --> POOL
-  POOL --> STORE
-  STORE --> REP
-  REP ==>|WAL stream| RNET
-  RNET --> RPOOL
-  RPOOL --> RSTORE
-
-  class CLI,SDK,VFS client
-  class NET,RNET transport
-  class POOL,RPOOL pool
-  class STORE,RSTORE store
-  class REP repl
-
-  style clients fill:#f8fafc,stroke:#94a3b8,stroke-width:1px,color:#334155
-  style primary fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#14532d
-  style replica fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#581c87
-
-  linkStyle 6 stroke:#7c3aed,stroke-width:3px
-```
+<p align="center">
+  <img src="art/architecture.svg" alt="CapDB architecture — clients, primary server, WAL replication to replica" width="100%"/>
+</p>
 
 | Mode | Storage flag | Use case |
 |------|----------------|----------|
