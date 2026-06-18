@@ -53,6 +53,14 @@ int  capdb_store_vfs_register(const char *zVolumeRoot, int makeDefault);
 void capdb_store_vfs_shutdown(void);
 const char *capdb_store_vfs_name(void);
 
+int  capdb_store_vol_id_valid(const char *zVolId);
+
+#if defined(CAPDB_ENABLE_REPLICATION)
+struct capdb_rep_sender;
+void capdb_store_set_rep_sender(struct capdb_rep_sender *p);
+struct capdb_rep_sender *capdb_store_rep_sender(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

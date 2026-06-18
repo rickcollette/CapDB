@@ -13,6 +13,7 @@
 #endif
 #if defined(CAPDB_ENABLE_REPLICATION)
 #include "../replication/capdb_rep.h"
+#include "../replication/capdb_rep_recovery.h"
 #endif
 #include <pthread.h>
 #include <stdio.h>
@@ -49,6 +50,7 @@ struct PoolEntry {
 typedef struct ServerStmt ServerStmt;
 struct ServerStmt {
   int id;
+  int bWrite;
   capdb_stmt *pStmt;
   ServerStmt *pNext;
 };
@@ -165,7 +167,7 @@ static void capdbPeer(int fd, char *buf, size_t n){
 }
 
 static void sendError(Session *p, int rc, const char *zMsg){
-  capdb_buf pl, frame;
+  capdb_buf pl;
   capdb_buf_init(&pl);
   capdb_buf_append_i32(&pl, rc);
   capdb_buf_append_str(&pl, zMsg ? zMsg : "error");
@@ -315,6 +317,10 @@ static int serverIsReplica(capdb_server *pSrv){
   return pSrv && pSrv->cfg.clusterRole==CAPDB_CLUSTER_ROLE_REPLICA;
 }
 
+static int serverIsDemoted(capdb_server *pSrv){
+  return pSrv && pSrv->cfg.clusterRole==CAPDB_CLUSTER_ROLE_DEMOTED;
+}
+
 #if defined(CAPDB_ENABLE_REPLICATION)
 static int serverRepStart(capdb_server *p){
   capdb_rep_config rcfg;
@@ -328,6 +334,7 @@ static int serverRepStart(capdb_server *p){
     rcfg.zListen = p->cfg.zRepListen;
     rcfg.zVolumePath = p->cfg.zVolumeRoot;
     if( capdb_rep_sender_start(&rcfg, 0, &p->pRepSender)!=CAPDB_OK ) return -1;
+    capdb_store_set_rep_sender(p->pRepSender);
   }
   if( serverIsReplica(p) && p->cfg.zRepPrimary && p->cfg.zVolumeRoot ){
     const char *colon = strrchr(p->cfg.zRepPrimary, ':');
@@ -352,6 +359,7 @@ static int serverRepStart(capdb_server *p){
 
 static void serverRepStop(capdb_server *p){
   if( p->pRepSender ){
+    capdb_store_set_rep_sender(0);
     capdb_rep_sender_stop(p->pRepSender);
     p->pRepSender = 0;
   }
@@ -361,7 +369,10 @@ static void serverRepStop(capdb_server *p){
   }
 }
 
-static void serverVolumeReplicateWrite(Session *p){
+#endif
+
+#if defined(CAPDB_ENABLE_STORE) && defined(CAPDB_ENABLE_REPLICATION)
+static void serverVolumeReplicateSnapshot(Session *p){
   capdb_volume *pVol = 0;
   char *zErr = 0;
   if( p==0 || p->db==0 || p->zDbPath==0 || p->pSrv==0 ) return;
@@ -372,6 +383,20 @@ static void serverVolumeReplicateWrite(Session *p){
     capdb_volume_replicate_sql_main(pVol, 0);
     capdb_volume_close(pVol);
   }
+}
+#endif
+
+#if defined(CAPDB_ENABLE_STORE) && defined(CAPDB_ENABLE_REPLICATION)
+static int serverReplicaSyncVolume(const char *zDbPath){
+  capdb_volume *pVol = 0;
+  int rc = CAPDB_OK;
+  if( zDbPath==0 ) return CAPDB_MISUSE;
+  if( capdb_volume_open(zDbPath, CAPDB_VOLUME_OPEN_CREATE, &pVol)!=CAPDB_OK ){
+    return CAPDB_CANTOPEN;
+  }
+  rc = capdb_rep_recovery_replay_dir(pVol);
+  capdb_volume_close(pVol);
+  return rc;
 }
 #endif
 
@@ -391,9 +416,11 @@ static int pathIsAllowedVolume(capdb_server *pSrv, const char *zPath, char **pzO
   char zId[256];
   char *zRealRoot = 0;
   char *zCand = 0;
+  char *zResolved = 0;
   size_t nRoot, nOut;
   if( pSrv->cfg.zVolumeRoot==0 ) return -1;
   if( pathVolumeIdFromClient(zPath, zId, sizeof(zId)) ) return -1;
+  if( !capdb_store_vol_id_valid(zId) ) return -1;
   zRealRoot = realpath(pSrv->cfg.zVolumeRoot, 0);
   if( zRealRoot==0 ) return -1;
   nRoot = strlen(zRealRoot);
@@ -401,12 +428,23 @@ static int pathIsAllowedVolume(capdb_server *pSrv, const char *zPath, char **pzO
   zCand = (char*)malloc(nOut);
   if( zCand==0 ){ free(zRealRoot); return -1; }
   snprintf(zCand, nOut, "%s/%s", zRealRoot, zId);
-  if( mkdir(zCand, 0755)!=0 && errno!=EEXIST ){
+  zResolved = realpath(zCand, 0);
+  if( zResolved==0 ){
+    if( mkdir(zCand, 0755)!=0 && errno!=EEXIST ){
+      free(zCand);
+      free(zRealRoot);
+      return -1;
+    }
+    zResolved = realpath(zCand, 0);
+  }
+  if( zResolved==0 || !pathWithinRoot(zResolved, zRealRoot, nRoot) ){
+    free(zResolved);
     free(zCand);
     free(zRealRoot);
     return -1;
   }
   *pzOut = zCand;
+  free(zResolved);
   free(zRealRoot);
   return 0;
 }
@@ -820,6 +858,15 @@ static int sessionMaybeReleaseDb(Session *p){
   return sessionReleaseDb(p);
 }
 
+#if defined(CAPDB_ENABLE_STORE)
+static int volumeAuthorizer(void *pUnused, int action, const char *a,
+                            const char *b, const char *c, const char *d){
+  (void)pUnused; (void)a; (void)b; (void)c; (void)d;
+  if( action==CAPDB_ATTACH || action==CAPDB_DETACH ) return CAPDB_DENY;
+  return CAPDB_OK;
+}
+#endif
+
 static int sessionAcquireDb(Session *p, int bWrite){
   int rc;
   (void)bWrite;
@@ -827,19 +874,39 @@ static int sessionAcquireDb(Session *p, int bWrite){
   if( p->zDbPath==0 ) return CAPDB_MISUSE;
 #if defined(CAPDB_ENABLE_STORE)
   if( serverUsesVolume(p->pSrv) ){
-    char zMain[1024];
     rc = pathRegistryPinPool(p->pSrv, p->zDbPath);
     if( rc!=CAPDB_OK ) return rc;
     if( capdb_volume_prepare(p->zDbPath, CAPDB_VOLUME_OPEN_CREATE)!=CAPDB_OK ){
       pathRegistryUnpinPool(p->pSrv, p->zDbPath);
       return CAPDB_CANTOPEN;
     }
-    snprintf(zMain, sizeof(zMain), "%s/" CAPDB_STORE_MAIN_DB, p->zDbPath);
-    rc = capdb_open_v2(zMain, &p->db,
-        CAPDB_OPEN_READWRITE|CAPDB_OPEN_CREATE, 0);
+#if defined(CAPDB_ENABLE_REPLICATION)
+    if( serverIsReplica(p->pSrv) ){
+      rc = serverReplicaSyncVolume(p->zDbPath);
+      if( rc!=CAPDB_OK ){
+        pathRegistryUnpinPool(p->pSrv, p->zDbPath);
+        return rc;
+      }
+    }
+#endif
+    rc = capdb_open_v2(p->zDbPath, &p->db,
+        CAPDB_OPEN_READWRITE|CAPDB_OPEN_CREATE, capdb_store_vfs_name());
     if( rc!=CAPDB_OK ){
       pathRegistryUnpinPool(p->pSrv, p->zDbPath);
       return rc;
+    }
+    capdb_set_authorizer(p->db, volumeAuthorizer, 0);
+    {
+      char *zErr = 0;
+      rc = capdb_exec(p->db, "PRAGMA journal_mode=WAL", 0, 0, &zErr);
+      if( rc!=CAPDB_OK ){
+        capdb_free(zErr);
+        capdb_close_v2(p->db);
+        p->db = 0;
+        pathRegistryUnpinPool(p->pSrv, p->zDbPath);
+        return rc;
+      }
+      capdb_free(zErr);
     }
     capdb_busy_timeout(p->db, 30000);
     return CAPDB_OK;
@@ -973,11 +1040,12 @@ static int handleExec(Session *p, capdb_reader *r){
   txn = sqlTxnAction(zSql);
 
 #if defined(CAPDB_ENABLE_STORE)
-  if( serverIsReplica(p->pSrv) ){
+  if( serverIsReplica(p->pSrv) || serverIsDemoted(p->pSrv) ){
     bWrite = sqlIsWrite(zSql);
     if( bWrite || txn==TXN_BEGIN || txn==TXN_COMMIT || txn==TXN_ROLLBACK ){
       free(zSql);
-      sendError(p, CAPDB_READONLY, "replica is read-only");
+      sendError(p, CAPDB_READONLY,
+          serverIsDemoted(p->pSrv) ? "demoted primary is read-only" : "replica is read-only");
       return 0;
     }
   }
@@ -1034,6 +1102,11 @@ static int handleExec(Session *p, capdb_reader *r){
         return 0;
       }
       capdb_free(zErr);
+#if defined(CAPDB_ENABLE_STORE) && defined(CAPDB_ENABLE_REPLICATION)
+      if( txn==TXN_COMMIT && serverUsesVolume(p->pSrv) && p->pSrv->pRepSender ){
+        serverVolumeReplicateSnapshot(p);
+      }
+#endif
 #if defined(CAPDB_ENABLE_REPLICATION)
       if( txn==TXN_COMMIT && p->pSrv->pRepSender && p->pSrv->cfg.repSyncMode ){
         unsigned long long lsn = capdb_rep_sender_last_lsn(p->pSrv->pRepSender);
@@ -1064,29 +1137,6 @@ static int handleExec(Session *p, capdb_reader *r){
       return 0;
     }
   }
-#if defined(CAPDB_ENABLE_STORE)
-  /* capdbstorevfs: capdb_exec works for writes; prepare/step on back-to-back writes
-  ** returns READONLY until the underlying VFS issue is fixed (Phase B). SELECT must
-  ** use prepare/step so row data reaches the client protocol. */
-  if( serverUsesVolume(p->pSrv) && bWrite ){
-    char *zErr = 0;
-    rc = capdb_exec(p->db, zSql, 0, 0, &zErr);
-    free(zSql);
-    if( rc!=CAPDB_OK ){
-      sendError(p, rc, zErr ? zErr : capdb_errmsg(p->db));
-      capdb_free(zErr);
-      if( !p->inTxn ) sessionMaybeReleaseDb(p);
-      return 0;
-    }
-    capdb_free(zErr);
-#if defined(CAPDB_ENABLE_REPLICATION)
-    serverVolumeReplicateWrite(p);
-#endif
-    sendExecResult(p, CAPDB_OK, capdb_changes(p->db), capdb_last_insert_rowid(p->db));
-    if( !p->inTxn ) sessionMaybeReleaseDb(p);
-    return 0;
-  }
-#endif
   {
     capdb_stmt *s = 0;
     rc = capdb_prepare_v2(p->db, zSql, -1, &s, 0);
@@ -1135,6 +1185,20 @@ static int handleExec(Session *p, capdb_reader *r){
     capdb_buf_append_i64(&pl, capdb_last_insert_rowid(p->db));
     /* auto-commit only when not inside an explicit transaction */
     if( bWrite && rc==CAPDB_DONE && !p->inTxn ){
+#if defined(CAPDB_ENABLE_REPLICATION)
+      if( serverUsesVolume(p->pSrv) && p->pSrv->pRepSender ){
+        serverVolumeReplicateSnapshot(p);
+        if( p->pSrv->cfg.repSyncMode ){
+          unsigned long long lsn = capdb_rep_sender_last_lsn(p->pSrv->pRepSender);
+          if( lsn>0 && capdb_rep_sender_wait_ack(p->pSrv->pRepSender, lsn, 5000)!=CAPDB_OK ){
+            capdb_finalize(s);
+            sessionReleaseDb(p);
+            sendError(p, CAPDB_BUSY, "sync replication timeout");
+            return 0;
+          }
+        }
+      } else
+#endif
 #if defined(CAPDB_ENABLE_STORE)
       if( !serverUsesVolume(p->pSrv) )
 #endif
@@ -1194,6 +1258,17 @@ static int handlePrepare(Session *p, capdb_reader *r){
     return 0;
   }
   bWrite = sqlIsWrite(zSql);
+#if defined(CAPDB_ENABLE_STORE)
+  if( serverIsReplica(p->pSrv) || serverIsDemoted(p->pSrv) ){
+    int txn = sqlTxnAction(zSql);
+    if( bWrite || txn==TXN_BEGIN || txn==TXN_COMMIT || txn==TXN_ROLLBACK ){
+      free(zSql);
+      sendError(p, CAPDB_READONLY,
+          serverIsDemoted(p->pSrv) ? "demoted primary is read-only" : "replica is read-only");
+      return 0;
+    }
+  }
+#endif
   if( !p->inTxn ){
     rc = sessionReacquireDb(p, bWrite);
     if( rc!=CAPDB_OK ){
@@ -1209,6 +1284,7 @@ static int handlePrepare(Session *p, capdb_reader *r){
     return 0;
   }
   st->id = ++p->nStmtId;
+  st->bWrite = bWrite;
   rc = capdb_prepare_v2(p->db, zSql, -1, &st->pStmt, 0);
   free(zSql);
   if( rc!=CAPDB_OK ){
@@ -1243,6 +1319,13 @@ static int handleStep(Session *p, capdb_reader *r){
     sendError(p, CAPDB_MISUSE, "bad stmt id");
     return 0;
   }
+#if defined(CAPDB_ENABLE_STORE)
+  if( (serverIsReplica(p->pSrv) || serverIsDemoted(p->pSrv)) && st->bWrite ){
+    sendError(p, CAPDB_READONLY,
+        serverIsDemoted(p->pSrv) ? "demoted primary is read-only" : "replica is read-only");
+    return 0;
+  }
+#endif
   /* Stream up to `batch` rows OR ~CAPDB_BATCH_BYTE_BUDGET bytes (whichever comes
   ** first), then a terminal STEP_DONE carrying rc + a "more rows pending" flag.
   ** Bounding by bytes as well as count caps the client's prefetch buffer so a

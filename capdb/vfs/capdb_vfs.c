@@ -5,7 +5,6 @@
 #include "capdb.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <pthread.h>
 
 #define CAPDB_VFS_NAME "capdbvfs"
@@ -301,7 +300,7 @@ static capdb_io_methods mIoMethods = {
   mFileFileControl,
   mFileSectorSize,
   mFileDeviceCharacteristics,
-  0, 0, 0, 0
+  0, 0, 0, 0, 0, 0
 };
 
 static int mVfsOpenFixed(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,

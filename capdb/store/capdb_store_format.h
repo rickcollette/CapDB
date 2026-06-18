@@ -2,7 +2,7 @@
 #if !defined(__CAPDB_STORE_FORMAT_H_)
 #define __CAPDB_STORE_FORMAT_H_ 1
 
-#define CAPDB_STORE_FORMAT_VERSION  1
+#define CAPDB_STORE_FORMAT_VERSION  2
 #define CAPDB_STORE_PAGE_SIZE_DEFAULT 4096
 #define CAPDB_STORE_WAL_MAGIC         0x43574442u  /* "CWDB" */
 
@@ -24,6 +24,7 @@ typedef struct CapdbStoreWalHdr CapdbStoreWalHdr;
 struct CapdbStoreWalHdr {
   unsigned magic;
   unsigned format;
+  unsigned generation;
   unsigned long long lsn;
   unsigned long long prev_lsn;
   unsigned long long wal_offset;

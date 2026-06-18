@@ -48,6 +48,7 @@ int  capdb_rep_sender_wait_ack(capdb_rep_sender *p, unsigned long long lsn,
 void capdb_rep_sender_note_ack(capdb_rep_sender *p, unsigned long long lsn);
 unsigned long long capdb_rep_sender_last_lsn(capdb_rep_sender *p);
 capdb_rep_sender *capdb_rep_sender_global(void);
+void capdb_rep_sender_set_active(capdb_rep_sender *p);
 void capdb_rep_primary_on_wal(capdb_volume *pVol, const CapdbStoreWalHdr *hdr,
                               const void *payload, int nPayload);
 

@@ -79,3 +79,27 @@ VFS reserved/pending locks are enforced process-wide.
 
 - CMake options: `CAPDB_WARNINGS` (default ON), `CAPDB_WERROR` (CI optional).
 - `tools/warnings.sh` builds CapDB-owned targets with `-Wall -Wextra`.
+
+## HA storage — Phase B / B+ (unreleased)
+
+### Phase B — `capdbstorevfs` restore
+
+- SQLite sidecars colocated at `data/main.db-wal` / `data/main.db-shm`
+- Volume refcount held for main, WAL, and SHM opens (fixes back-to-back write READONLY)
+- Server opens volume id via `capdbstorevfs` (removed unix-VFS workaround and snapshot replicate)
+- Replication driven by `storeWrapWrite` → incremental WAL chunks
+- Primary still sends a post-autocommit `main.db` snapshot for replica read consistency (incremental WAL apply alone is not yet sufficient for SQLite open on replicas)
+- Replicas replay `wal/*.wal` and checkpoint before opening a volume for reads
+
+### Phase B+ — HA hardening
+
+- Sync replication waits on autocommit volume writes (`--sync-replication`)
+- WAL header format v2 adds `generation`; replicas reject stale generations
+- Ordered WAL replay in `capdb_rep_recovery_replay_dir` with SQLite checkpoint
+- Server-owned active sender (`capdb_rep_sender_set_active`); min-replica ACK quorum
+
+### Tests
+
+- `capdb-26-volume-multi-write` — two consecutive INSERTs on volume server
+- `capdb-27-rep-sync` — sync replication primary → replica read
+- `store_test` direct volume SQL re-enabled

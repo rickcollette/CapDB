@@ -7,10 +7,15 @@ volumes/<db-id>/
   manifest.json
   meta/state
   data/main.db
-  wal/
+  data/main.db-wal      # SQLite WAL sidecar (colocated)
+  data/main.db-shm      # SQLite SHM sidecar (colocated)
+  wal/                  # framed replication segments (*.wal)
   pages/
   snapshots/
 ```
+
+SQLite sidecars live beside `data/main.db`. Framed replication segments remain
+under `wal/` for ordered replay and streaming.
 
 ## Server usage
 
@@ -33,6 +38,9 @@ See [`capdb_store.h`](capdb_store.h). Key entry points:
 
 ## Replication
 
-WAL segments written under `wal/` use the envelope in `capdb_store_format.h`.
-Primary streams segments via `capdb_replication`; replicas apply with
-`capdb_rep_replica_apply_chunk`.
+WAL segments written under `wal/` use the envelope in `capdb_store_format.h`
+(format v2 includes `generation` for split-brain fencing). Primary streams
+segments via `storeWrapWrite` → `capdb_volume_append_wal` → `capdb_rep_primary_on_wal`.
+Replicas apply incremental payloads to `data/main.db-wal` (or snapshot bootstrap
+via `CAPDB_STORE_WAL_OFFSET_MAIN_DB`). Recovery replays ordered `wal/*.wal` with
+`capdb_rep_recovery_replay_dir`.

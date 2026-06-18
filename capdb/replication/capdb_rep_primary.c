@@ -19,6 +19,17 @@
 
 #define CAPDB_REP_MAX_REPLICAS 8
 
+static int repConstantTimeEq(const char *a, const char *b){
+  size_t i;
+  size_t la = a ? strlen(a) : 0;
+  size_t lb = b ? strlen(b) : 0;
+  unsigned char c = (unsigned char)(la ^ lb);
+  for(i=0; i<la && i<lb; i++){
+    c |= (unsigned char)(a[i] ^ b[i]);
+  }
+  return c==0 && la==lb;
+}
+
 typedef struct RepReplicaLink {
   capdb_stream *pStream;
   unsigned long long lastAck;
@@ -83,12 +94,46 @@ static int repSendWalSegment(capdb_stream *s, const char *zPath){
   return rc;
 }
 
+static void repBootstrapVolume(capdb_stream *s, const char *zVolPath){
+  capdb_volume *pVol = 0;
+  unsigned long long lsn = 0;
+  char zSeg[1024];
+  if( s==0 || zVolPath==0 ) return;
+  if( capdb_volume_open(zVolPath, 0, &pVol)!=CAPDB_OK ) return;
+  if( capdb_volume_replicate_sql_main(pVol, &lsn)!=CAPDB_OK ){
+    capdb_volume_close(pVol);
+    return;
+  }
+  snprintf(zSeg, sizeof(zSeg), "%s/" CAPDB_STORE_DIR_WAL "/%08llu.wal",
+           zVolPath, lsn);
+  repSendWalSegment(s, zSeg);
+  capdb_volume_close(pVol);
+}
+
+typedef struct WalSeg WalSeg;
+struct WalSeg {
+  unsigned long long lsn;
+  char zPath[1200];
+};
+
+static int walSegCmp(const void *a, const void *b){
+  const WalSeg *pa = (const WalSeg*)a;
+  const WalSeg *pb = (const WalSeg*)b;
+  if( pa->lsn < pb->lsn ) return -1;
+  if( pa->lsn > pb->lsn ) return 1;
+  return 0;
+}
+
 static void repReplayVolumeWal(capdb_rep_sender *p, capdb_stream *s,
                                const char *zVolPath,
                                unsigned long long fromLsn){
   char zWalDir[1024];
   DIR *d;
   struct dirent *de;
+  WalSeg *aSeg = 0;
+  int nSeg = 0;
+  int nAlloc = 0;
+  int i;
   (void)p;
   snprintf(zWalDir, sizeof(zWalDir), "%s/" CAPDB_STORE_DIR_WAL, zVolPath);
   d = opendir(zWalDir);
@@ -97,13 +142,25 @@ static void repReplayVolumeWal(capdb_rep_sender *p, capdb_stream *s,
     char zSeg[1024];
     unsigned long long lsn = 0;
     struct stat st;
+    WalSeg *slot;
     if( sscanf(de->d_name, "%08llu.wal", &lsn)!=1 ) continue;
     if( lsn<=fromLsn ) continue;
     snprintf(zSeg, sizeof(zSeg), "%s/%s", zWalDir, de->d_name);
     if( stat(zSeg, &st)!=0 || !S_ISREG(st.st_mode) ) continue;
-    repSendWalSegment(s, zSeg);
+    if( nSeg>=nAlloc ){
+      nAlloc = nAlloc ? nAlloc*2 : 32;
+      aSeg = (WalSeg*)realloc(aSeg, (size_t)nAlloc*sizeof(WalSeg));
+      if( aSeg==0 ){ closedir(d); return; }
+    }
+    slot = &aSeg[nSeg++];
+    slot->lsn = lsn;
+    snprintf(slot->zPath, sizeof(slot->zPath), "%s", zSeg);
   }
   closedir(d);
+  if( nSeg==0 ){ free(aSeg); return; }
+  qsort(aSeg, (size_t)nSeg, sizeof(WalSeg), walSegCmp);
+  for(i=0; i<nSeg; i++) repSendWalSegment(s, aSeg[i].zPath);
+  free(aSeg);
 }
 
 static void repReplayToStream(capdb_rep_sender *p, capdb_stream *s,
@@ -120,6 +177,7 @@ static void repReplayToStream(capdb_rep_sender *p, capdb_stream *s,
     if( de->d_name[0]=='.' ) continue;
     snprintf(zVol, sizeof(zVol), "%s/%s", zRoot, de->d_name);
     if( stat(zVol, &st)!=0 || !S_ISDIR(st.st_mode) ) continue;
+    if( fromLsn==0 ) repBootstrapVolume(s, zVol);
     repReplayVolumeWal(p, s, zVol, fromLsn);
   }
   closedir(d);
@@ -143,12 +201,8 @@ static void repServeReplica(capdb_rep_sender *p, capdb_stream *pConn){
     capdb_reader_init(&r, rx.a, rx.n);
     capdb_reader_str(&r, &zTok);
     capdb_buf_clear(&rx);
-    if( p->cfg.zAuthToken && zTok==0 ) goto done;
-    if( p->cfg.zAuthToken && zTok && strcmp(zTok, p->cfg.zAuthToken)!=0 ){
-      free(zTok);
-      goto done;
-    }
-    if( p->cfg.zAuthToken==0 && zTok && zTok[0]!=0 ){
+    if( p->cfg.zAuthToken==0 || p->cfg.zAuthToken[0]==0 ) goto done;
+    if( zTok==0 || !repConstantTimeEq(zTok, p->cfg.zAuthToken) ){
       free(zTok);
       goto done;
     }
@@ -257,13 +311,23 @@ static void *repAcceptLoop(void *pArg){
   return 0;
 }
 
-static capdb_rep_sender *gRepSender = 0;
+static unsigned long long repMinReplicaAck(capdb_rep_sender *p){
+  unsigned long long min = ~0ULL;
+  int i;
+  if( p==0 || p->nReplica==0 ) return 0;
+  for(i=0; i<p->nReplica; i++){
+    if( p->aReplica[i].lastAck < min ) min = p->aReplica[i].lastAck;
+  }
+  return min;
+}
 
 int capdb_rep_sender_start(const capdb_rep_config *pCfg, capdb_volume *pVol,
                            capdb_rep_sender **pp){
   capdb_rep_sender *p;
   if( pCfg==0 || pp==0 ) return CAPDB_MISUSE;
-  if( gRepSender ) return CAPDB_BUSY;
+  if( pCfg->zListen && (!pCfg->zAuthToken || pCfg->zAuthToken[0]==0) ){
+    return CAPDB_MISUSE;
+  }
   p = (capdb_rep_sender*)calloc(1, sizeof(*p));
   if( p==0 ) return CAPDB_NOMEM;
   p->cfg = *pCfg;
@@ -278,9 +342,12 @@ int capdb_rep_sender_start(const capdb_rep_config *pCfg, capdb_volume *pVol,
   if( p->repListenFd>=0 ){
     pthread_create(&p->acceptThread, 0, repAcceptLoop, p);
   }
-  gRepSender = p;
   *pp = p;
   return CAPDB_OK;
+}
+
+void capdb_rep_sender_set_active(capdb_rep_sender *p){
+  capdb_store_set_rep_sender(p);
 }
 
 void capdb_rep_sender_stop(capdb_rep_sender *p){
@@ -299,12 +366,12 @@ void capdb_rep_sender_stop(capdb_rep_sender *p){
   p->nReplica = 0;
   pthread_mutex_unlock(&p->mutex);
   pthread_mutex_destroy(&p->mutex);
-  if( gRepSender==p ) gRepSender = 0;
+  if( capdb_store_rep_sender()==p ) capdb_store_set_rep_sender(0);
   free(p);
 }
 
 capdb_rep_sender *capdb_rep_sender_global(void){
-  return gRepSender;
+  return capdb_store_rep_sender();
 }
 
 int capdb_rep_sender_wait_ack(capdb_rep_sender *p, unsigned long long lsn,
@@ -312,10 +379,11 @@ int capdb_rep_sender_wait_ack(capdb_rep_sender *p, unsigned long long lsn,
   int i, maxTry;
   if( p==0 ) return CAPDB_MISUSE;
   if( p->cfg.syncMode==CAPDB_REP_SYNC_OFF ) return CAPDB_OK;
+  if( p->nReplica==0 ) return CAPDB_BUSY;
   maxTry = timeoutMs>0 ? timeoutMs/10 : 500;
   for(i=0; i<maxTry; i++){
     pthread_mutex_lock(&p->mutex);
-    if( p->lastAckLsn>=lsn ){
+    if( repMinReplicaAck(p)>=lsn ){
       pthread_mutex_unlock(&p->mutex);
       return CAPDB_OK;
     }
@@ -343,7 +411,7 @@ unsigned long long capdb_rep_sender_last_lsn(capdb_rep_sender *p){
 
 void capdb_rep_primary_on_wal(capdb_volume *pVol, const CapdbStoreWalHdr *hdr,
                               const void *payload, int nPayload){
-  capdb_rep_sender *p = gRepSender;
+  capdb_rep_sender *p = capdb_store_rep_sender();
   int i;
   if( p==0 || hdr==0 || payload==0 || nPayload<=0 ) return;
   pthread_mutex_lock(&p->mutex);
@@ -353,6 +421,9 @@ void capdb_rep_primary_on_wal(capdb_volume *pVol, const CapdbStoreWalHdr *hdr,
     if( s ) capdb_rep_send_wal_chunk(s, hdr, (int)sizeof(*hdr), payload, nPayload);
   }
   pthread_mutex_unlock(&p->mutex);
+  if( p->cfg.syncMode==CAPDB_REP_SYNC_ON ){
+    (void)capdb_rep_sender_wait_ack(p, hdr->lsn, 5000);
+  }
   (void)pVol;
 }
 

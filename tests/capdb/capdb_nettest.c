@@ -93,6 +93,29 @@ static int pick_free_port(void){
   return 0;
 }
 
+static int test_volume_multi_write(const char *zUri){
+  capdb_conn *p = 0;
+  if( capdb_net_connect(zUri, &p) ) return 1;
+  if( capdb_net_exec(p, "CREATE TABLE IF NOT EXISTS mw(v INTEGER)", 0, 0) ){
+    capdb_net_close(p);
+    return 1;
+  }
+  if( capdb_net_exec(p, "DELETE FROM mw", 0, 0) ){
+    capdb_net_close(p);
+    return 1;
+  }
+  if( capdb_net_exec(p, "INSERT INTO mw VALUES(1)", 0, 0) ){
+    capdb_net_close(p);
+    return 1;
+  }
+  if( capdb_net_exec(p, "INSERT INTO mw VALUES(2)", 0, 0) ){
+    capdb_net_close(p);
+    return 1;
+  }
+  capdb_net_close(p);
+  return 0;
+}
+
 static int test_prepare_step(const char *zUri){
   capdb_conn *p = 0;
   capdb_net_stmt *st = 0;
@@ -615,6 +638,7 @@ int main(int argc, char **argv){
     return 1;
   }
   if( strcmp(zTest,"prepare-step")==0 ) return test_prepare_step(zUri) ? 1 : 0;
+  if( strcmp(zTest,"volume-multi-write")==0 ) return test_volume_multi_write(zUri) ? 1 : 0;
   if( strcmp(zTest,"open-switch")==0 ) return test_open_switch(zUri) ? 1 : 0;
   if( strcmp(zTest,"open-in-txn")==0 ) return test_open_in_txn(zUri) ? 1 : 0;
   if( strcmp(zTest,"vfs-read")==0 ) return test_vfs_read(zUri) ? 1 : 0;

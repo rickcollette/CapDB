@@ -48,6 +48,15 @@ set(CAPDB_STAGING_DIR "${CAPDB_GEN_DIR}/staging")
 set(CAPDB_PY "${Python3_EXECUTABLE}" "${CAPDB_ROOT}/tools/py")
 file(MAKE_DIRECTORY "${CAPDB_GEN_DIR}")
 
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+      "${CMAKE_BINARY_DIR}/compile_commands.json"
+      "${CMAKE_SOURCE_DIR}/compile_commands.json"
+    ERROR_QUIET
+  )
+endif()
+
 # ---------------------------------------------------------------------------
 # Compile definitions
 # ---------------------------------------------------------------------------
@@ -377,11 +386,13 @@ if(CAPDB_ENABLE_STORE)
   )
   target_compile_definitions(capdb-ctl PRIVATE ${CAPDB_COMPILE_DEFS})
   capdb_target_warnings(capdb-ctl)
-  target_link_libraries(capdb-ctl PRIVATE capdb_store)
+  target_link_libraries(capdb-ctl PRIVATE
+    -Wl,--start-group capdb capdb_store -Wl,--end-group
+    Threads::Threads
+  )
   if(CAPDB_ENABLE_NETWORK)
     target_link_libraries(capdb-ctl PRIVATE capdb_client)
   endif()
-  target_link_libraries(capdb-ctl PRIVATE capdb Threads::Threads)
   target_link_libraries(capdb_cli PRIVATE capdb_store)
 endif()
 
@@ -447,6 +458,28 @@ if(CAPDB_ENABLE_NETWORK)
   if(CAPDB_ENABLE_STORE)
     target_link_libraries(capdb-server PRIVATE capdb_store)
   endif()
+
+  # IDE/clangd: capdb_server.c is amalgamated into libcapdb; this object target
+  # exists only to populate compile_commands.json for the server sources.
+  add_library(capdb_server_ide OBJECT EXCLUDE_FROM_ALL capdb/server/capdb_server.c)
+  target_include_directories(capdb_server_ide PRIVATE
+    "${CAPDB_ROOT}"
+    "${CAPDB_GEN_DIR}"
+    "${CAPDB_ROOT}/capdb"
+    "${CAPDB_ROOT}/capdb/server"
+    "${CAPDB_ROOT}/capdb/pool"
+    "${CAPDB_ROOT}/capdb/proto"
+    "${CAPDB_ROOT}/capdb/tls"
+  )
+  if(CAPDB_ENABLE_STORE)
+    target_include_directories(capdb_server_ide PRIVATE
+      "${CAPDB_ROOT}/capdb/store"
+      "${CAPDB_ROOT}/capdb/cluster"
+      "${CAPDB_ROOT}/capdb/replication"
+    )
+  endif()
+  target_compile_definitions(capdb_server_ide PRIVATE ${CAPDB_COMPILE_DEFS})
+  capdb_target_warnings(capdb_server_ide)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -588,6 +621,9 @@ if(CAPDB_BUILD_TESTS)
     )
     if(CAPDB_ENABLE_REPLICATION)
       list(APPEND _capdb_net_filters capdb-25-rep-async)
+    endif()
+    if(CAPDB_ENABLE_STORE AND CAPDB_ENABLE_REPLICATION)
+      list(APPEND _capdb_net_filters capdb-26-volume-multi-write capdb-27-rep-sync)
     endif()
     foreach(_f IN LISTS _capdb_net_filters)
       string(REPLACE "-" "_" _test ${_f})

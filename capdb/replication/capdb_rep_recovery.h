@@ -9,6 +9,8 @@ extern "C" {
 #endif
 
 int capdb_rep_recovery_replay_dir(capdb_volume *pVol);
+int capdb_rep_apply_wal_payload(capdb_volume *pVol, const CapdbStoreWalHdr *wh,
+                                const void *payload, int nPayload);
 
 #ifdef __cplusplus
 }

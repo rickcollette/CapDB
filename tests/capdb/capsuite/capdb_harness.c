@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -79,6 +78,7 @@ int capsuite_capdb_server_start(CapdbTestServer *p, int port){
   int bRepListen = 0;
   int repPort = 0;
   int bReplica = 0;
+  int bRepSync = 0;
   char zRepPrimary[64];
   char zCert[512];
   char zKey[512];
@@ -90,6 +90,7 @@ int capsuite_capdb_server_start(CapdbTestServer *p, int port){
   bRepListen = p->bRepListen==1 ? 1 : 0;
   repPort = p->repPort;
   bReplica = p->bReplica==1 ? 1 : 0;
+  bRepSync = p->bRepSync==1 ? 1 : 0;
   snprintf(zRepPrimary, sizeof(zRepPrimary), "%s", p->zRepPrimary);
   if( bTls ){
     snprintf(zCert, sizeof(zCert), "%s", p->zCert);
@@ -103,6 +104,7 @@ int capsuite_capdb_server_start(CapdbTestServer *p, int port){
   p->bRepListen = bRepListen;
   p->repPort = repPort;
   p->bReplica = bReplica;
+  p->bRepSync = bRepSync;
   snprintf(p->zRepPrimary, sizeof(p->zRepPrimary), "%s", zRepPrimary);
   if( bTls ){
     snprintf(p->zCert, sizeof(p->zCert), "%s", zCert);
@@ -150,6 +152,9 @@ int capsuite_capdb_server_start(CapdbTestServer *p, int port){
     argv[i++] = zRepListen;
     argv[i++] = "--rep-token";
     argv[i++] = "testtoken";
+    if( p->bRepSync ){
+      argv[i++] = "--sync-replication";
+    }
   }
   if( p->bReplica ){
     argv[i++] = "--role";

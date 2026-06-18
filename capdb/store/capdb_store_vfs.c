@@ -69,9 +69,9 @@ static int storeResolvePath(const char *zName, char *zOut, int nOut,
   if( kind==0 ){
     snprintf(zOut, (size_t)nOut, "%s/" CAPDB_STORE_MAIN_DB, zVol);
   }else if( kind==1 ){
-    snprintf(zOut, (size_t)nOut, "%s/wal/main.db-wal", zVol);
+    snprintf(zOut, (size_t)nOut, "%s/" CAPDB_STORE_MAIN_DB "-wal", zVol);
   }else if( kind==2 ){
-    snprintf(zOut, (size_t)nOut, "%s/wal/main.db-shm", zVol);
+    snprintf(zOut, (size_t)nOut, "%s/" CAPDB_STORE_MAIN_DB "-shm", zVol);
   }else{
     snprintf(zOut, (size_t)nOut, "%s/data/main.db-journal", zVol);
   }
@@ -212,6 +212,34 @@ static int storeWrap##name(capdb_file *pFile){ \
   if( p->pReal==0 || p->pReal->pMethods==0 ) return CAPDB_IOERR; \
   return p->pReal->pMethods->x##name(p->pReal); \
 }
+#define STORE_DELEGATE_SHMMAP(name) \
+static int storeWrap##name(capdb_file *pFile, int iPg, int pgsz, int bWrite, \
+                           void volatile **pp){ \
+  StoreFile *p = storeFileFromBase(pFile); \
+  if( p->pReal==0 || p->pReal->pMethods==0 ) return CAPDB_IOERR; \
+  if( p->pReal->pMethods->x##name==0 ) return CAPDB_IOERR; \
+  return p->pReal->pMethods->x##name(p->pReal, iPg, pgsz, bWrite, pp); \
+}
+#define STORE_DELEGATE_SHMLOCK(name) \
+static int storeWrap##name(capdb_file *pFile, int offset, int n, int flags){ \
+  StoreFile *p = storeFileFromBase(pFile); \
+  if( p->pReal==0 || p->pReal->pMethods==0 ) return CAPDB_IOERR; \
+  if( p->pReal->pMethods->x##name==0 ) return CAPDB_IOERR; \
+  return p->pReal->pMethods->x##name(p->pReal, offset, n, flags); \
+}
+#define STORE_DELEGATE_SHMBARRIER(name) \
+static void storeWrap##name(capdb_file *pFile){ \
+  StoreFile *p = storeFileFromBase(pFile); \
+  if( p->pReal==0 || p->pReal->pMethods==0 ) return; \
+  if( p->pReal->pMethods->x##name ) p->pReal->pMethods->x##name(p->pReal); \
+}
+#define STORE_DELEGATE_SHMUNMAP(name) \
+static int storeWrap##name(capdb_file *pFile, int deleteFlag){ \
+  StoreFile *p = storeFileFromBase(pFile); \
+  if( p->pReal==0 || p->pReal->pMethods==0 ) return CAPDB_IOERR; \
+  if( p->pReal->pMethods->x##name==0 ) return CAPDB_IOERR; \
+  return p->pReal->pMethods->x##name(p->pReal, deleteFlag); \
+}
 
 STORE_DELEGATE2(Read)
 STORE_DELEGATE_TRUNC(Truncate)
@@ -223,6 +251,10 @@ STORE_DELEGATE_CRL(CheckReservedLock)
 STORE_DELEGATE_FCTL(FileControl)
 STORE_DELEGATE0(SectorSize)
 STORE_DELEGATE0(DeviceCharacteristics)
+STORE_DELEGATE_SHMMAP(ShmMap)
+STORE_DELEGATE_SHMLOCK(ShmLock)
+STORE_DELEGATE_SHMBARRIER(ShmBarrier)
+STORE_DELEGATE_SHMUNMAP(ShmUnmap)
 
 static int storeWrapWrite(capdb_file *pFile, const void *zBuf, int iAmt,
                           capdb_int64 iOfst){
@@ -238,7 +270,7 @@ static int storeWrapWrite(capdb_file *pFile, const void *zBuf, int iAmt,
 }
 
 static capdb_io_methods storeIoMethods = {
-  3,
+  2,
   storeWrapClose,
   storeWrapRead,
   storeWrapWrite,
@@ -251,7 +283,12 @@ static capdb_io_methods storeIoMethods = {
   storeWrapFileControl,
   storeWrapSectorSize,
   storeWrapDeviceCharacteristics,
-  0, 0, 0, 0
+  storeWrapShmMap,
+  storeWrapShmLock,
+  storeWrapShmBarrier,
+  storeWrapShmUnmap,
+  0,
+  0
 };
 
 static int storeWrapOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
@@ -281,7 +318,7 @@ static int storeWrapOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
   }
   p->bWal = (kind==1);
   p->pVol = 0;
-  if( kind==1 ){
+  if( kind<=2 ){
     p->pVol = storeVolumeAcquire(pV, zVol);
     if( p->pVol==0 ) return CAPDB_CANTOPEN;
   }
@@ -297,6 +334,15 @@ static int storeWrapOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
     p->pReal = 0;
     p->pVol = 0;
     return rc;
+  }
+  if( pOutFlags!=0 && (flags & CAPDB_OPEN_READWRITE)
+   && (*pOutFlags & CAPDB_OPEN_READONLY) ){
+    if( p->pReal->pMethods ) p->pReal->pMethods->xClose(p->pReal);
+    free(p->pReal);
+    if( p->pVol ) storeVolumeRelease(pV, p->pVol);
+    p->pReal = 0;
+    p->pVol = 0;
+    return CAPDB_CANTOPEN;
   }
   p->base.pMethods = &storeIoMethods;
   return CAPDB_OK;

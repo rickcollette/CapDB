@@ -199,6 +199,10 @@ static int capdb_24_volume_sql(void){
   return capdb_net_case_volume("prepare-step");
 }
 
+static int capdb_26_volume_multi_write(void){
+  return capdb_net_case_volume("volume-multi-write");
+}
+
 #if defined(CAPDB_ENABLE_REPLICATION)
 static int capdb_25_rep_async(void){
   CapdbTestServer primary;
@@ -233,6 +237,49 @@ static int capdb_25_rep_async(void){
     CAPSUITE_FAIL("rep-insert");
   }
   capsuite_sleep_ms(2000);
+  if( run_nettest("rep-select", zRepUri) ){
+    capsuite_capdb_server_stop(&replica);
+    capsuite_capdb_server_stop(&primary);
+    CAPSUITE_FAIL("rep-select");
+  }
+  capsuite_capdb_server_stop(&replica);
+  capsuite_capdb_server_stop(&primary);
+  return 0;
+}
+
+static int capdb_27_rep_sync(void){
+  CapdbTestServer primary;
+  CapdbTestServer replica;
+  char zPriUri[256];
+  char zRepUri[256];
+  char zRepPrimary[64];
+
+  memset(&primary, 0, sizeof(primary));
+  primary.bVolume = 1;
+  primary.bRepListen = 1;
+  primary.bRepSync = 1;
+  if( capsuite_capdb_server_start(&primary, 0) ) CAPSUITE_FAIL("primary start");
+
+  snprintf(zRepPrimary, sizeof(zRepPrimary), "127.0.0.1:%d", primary.repPort);
+  memset(&replica, 0, sizeof(replica));
+  replica.bVolume = 1;
+  replica.bReplica = 1;
+  snprintf(replica.zRepPrimary, sizeof(replica.zRepPrimary), "%s", zRepPrimary);
+  if( capsuite_capdb_server_start(&replica, 0) ){
+    capsuite_capdb_server_stop(&primary);
+    CAPSUITE_FAIL("replica start");
+  }
+
+  snprintf(zPriUri, sizeof(zPriUri),
+    "capdb://127.0.0.1:%d/sync.db?token=testtoken&insecure=1", primary.port);
+  snprintf(zRepUri, sizeof(zRepUri),
+    "capdb://127.0.0.1:%d/sync.db?token=testtoken&insecure=1", replica.port);
+
+  if( run_nettest("rep-insert", zPriUri) ){
+    capsuite_capdb_server_stop(&replica);
+    capsuite_capdb_server_stop(&primary);
+    CAPSUITE_FAIL("rep-insert");
+  }
   if( run_nettest("rep-select", zRepUri) ){
     capsuite_capdb_server_stop(&replica);
     capsuite_capdb_server_stop(&primary);
@@ -315,8 +362,10 @@ void capsuite_register_capdb(void){
     { "capdb-22-password-auth", capdb_22_password_auth },
     { "capdb-23-capdbvfs-sql", capdb_23_capdbvfs_sql },
     { "capdb-24-volume-sql", capdb_24_volume_sql },
+    { "capdb-26-volume-multi-write", capdb_26_volume_multi_write },
 #if defined(CAPDB_ENABLE_REPLICATION)
     { "capdb-25-rep-async", capdb_25_rep_async },
+    { "capdb-27-rep-sync", capdb_27_rep_sync },
 #endif
   };
   capsuite_register_tests(a, (int)(sizeof(a)/sizeof(a[0])));

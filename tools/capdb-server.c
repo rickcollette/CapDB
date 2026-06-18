@@ -96,6 +96,15 @@ int main(int argc, char **argv){
     fprintf(stderr, "error: --cert and --key required unless --insecure\n");
     return 1;
   }
+  if( cfg.zRepListen && (cfg.zRepToken==0 || cfg.zRepToken[0]==0) ){
+    fprintf(stderr, "error: --rep-token required when --rep-listen is set\n");
+    return 1;
+  }
+  if( cfg.clusterRole==CAPDB_CLUSTER_ROLE_REPLICA && cfg.zRepPrimary
+   && (cfg.zRepToken==0 || cfg.zRepToken[0]==0) ){
+    fprintf(stderr, "error: --rep-token required for replica role\n");
+    return 1;
+  }
 
   signal(SIGINT, handleSignal);
   signal(SIGTERM, handleSignal);

@@ -16,6 +16,7 @@ struct CapdbTestServer {
   int bRepListen;
   int repPort;
   int bReplica;
+  int bRepSync;
   char zRepPrimary[64];
   char zCert[512];
   char zKey[512];

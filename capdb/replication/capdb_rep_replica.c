@@ -3,6 +3,7 @@
 
 #include "capdb_rep.h"
 #include "capdb_rep_io.h"
+#include "capdb_rep_recovery.h"
 #include "capdb.h"
 #include "../store/capdb_store.h"
 #include "../store/capdb_store_format.h"
@@ -28,9 +29,9 @@ int capdb_rep_replica_apply_chunk(const char *zVolumeRoot, const void *hdr,
   capdb_volume *pVol = 0;
   char zVolPath[1024];
   char zSeg[1024];
-  char zSqlWal[1024];
   int fd;
   ssize_t w;
+  int rc;
   if( zVolumeRoot==0 || hdr==0 || nHdr<(int)sizeof(wh) || payload==0 || nPayload<=0 ){
     return CAPDB_MISUSE;
   }
@@ -39,7 +40,7 @@ int capdb_rep_replica_apply_chunk(const char *zVolumeRoot, const void *hdr,
     return CAPDB_CORRUPT;
   }
   if( capdb_store_crc32(payload, nPayload)!=wh.crc32 ) return CAPDB_CORRUPT;
-  if( wh.vol_id[0]==0 ) return CAPDB_MISUSE;
+  if( !capdb_store_vol_id_valid(wh.vol_id) ) return CAPDB_MISUSE;
   snprintf(zVolPath, sizeof(zVolPath), "%s/%s", zVolumeRoot, wh.vol_id);
   if( capdb_volume_open(zVolPath, CAPDB_VOLUME_OPEN_CREATE, &pVol)!=CAPDB_OK ){
     return CAPDB_CANTOPEN;
@@ -59,37 +60,9 @@ int capdb_rep_replica_apply_chunk(const char *zVolumeRoot, const void *hdr,
     capdb_volume_close(pVol);
     return CAPDB_IOERR;
   }
-  if( wh.wal_offset==CAPDB_STORE_WAL_OFFSET_MAIN_DB ){
-    char zSqlMain[1024];
-    snprintf(zSqlMain, sizeof(zSqlMain), "%s/" CAPDB_STORE_MAIN_DB, zVolPath);
-    fd = open(zSqlMain, O_WRONLY|O_CREAT|O_TRUNC, 0644);
-    if( fd<0 ){
-      capdb_volume_close(pVol);
-      return CAPDB_IOERR;
-    }
-    w = write(fd, payload, (size_t)nPayload);
-    if( w==nPayload ) w = fsync(fd)==0 ? nPayload : -1;
-    close(fd);
-    if( w!=nPayload ){
-      capdb_volume_close(pVol);
-      return CAPDB_IOERR;
-    }
-  }else{
-    snprintf(zSqlWal, sizeof(zSqlWal), "%s/" CAPDB_STORE_MAIN_DB "-wal", zVolPath);
-    fd = open(zSqlWal, O_RDWR|O_CREAT, 0644);
-    if( fd>=0 ){
-      if( pwrite(fd, payload, (size_t)nPayload, (off_t)wh.wal_offset)==nPayload ){
-        fsync(fd);
-      }
-      close(fd);
-    }
-  }
-  {
-    unsigned long long snap = 0;
-    capdb_volume_checkpoint(pVol, &snap);
-  }
+  rc = capdb_rep_apply_wal_payload(pVol, &wh, payload, nPayload);
   capdb_volume_close(pVol);
-  return CAPDB_OK;
+  return rc;
 }
 
 static void *repReplicaLoopFixed(void *pArg){

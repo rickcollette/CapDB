@@ -28,6 +28,43 @@ struct capdb_volume {
   pthread_mutex_t mutex;
 };
 
+#if defined(CAPDB_ENABLE_REPLICATION)
+static struct capdb_rep_sender *gStoreRepSender = 0;
+
+void capdb_store_set_rep_sender(struct capdb_rep_sender *p){
+  gStoreRepSender = p;
+}
+
+struct capdb_rep_sender *capdb_store_rep_sender(void){
+  return gStoreRepSender;
+}
+#endif
+
+static int storeVolIdHasDotDot(const char *zRel){
+  const char *z = zRel;
+  while( z && z[0] ){
+    const char *slash = strchr(z, '/');
+    size_t n = slash ? (size_t)(slash-z) : strlen(z);
+    if( n==2 && z[0]=='.' && z[1]=='.' ) return 1;
+    if( slash==0 ) break;
+    z = slash+1;
+  }
+  return 0;
+}
+
+int capdb_store_vol_id_valid(const char *zVolId){
+  const char *p;
+  size_t n;
+  if( zVolId==0 || zVolId[0]==0 ) return 0;
+  n = strlen(zVolId);
+  if( n>=CAPDB_STORE_VOL_ID_MAX ) return 0;
+  if( storeVolIdHasDotDot(zVolId) ) return 0;
+  for( p=zVolId; *p; p++ ){
+    if( *p=='/' || *p=='\\' ) return 0;
+  }
+  return 1;
+}
+
 static int storeEnsureMainFd(capdb_volume *p, int bRdonly){
   int flags;
   if( p==0 ) return CAPDB_MISUSE;
@@ -296,6 +333,7 @@ int capdb_volume_append_wal(capdb_volume *p, const void *walData, int n,
   memset(&hdr, 0, sizeof(hdr));
   hdr.magic = CAPDB_STORE_WAL_MAGIC;
   hdr.format = CAPDB_STORE_FORMAT_VERSION;
+  hdr.generation = (unsigned)p->generation;
   hdr.prev_lsn = p->lsn;
   hdr.wal_offset = walOffset;
   hdr.payload_len = (unsigned)n;

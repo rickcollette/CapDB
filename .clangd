@@ -19,6 +19,8 @@ CompileFlags:
     - -DBUILD_capdb
     - -DCAPDB_ENABLE_POOL
     - -DCAPDB_ENABLE_NETWORK
+    - -DCAPDB_ENABLE_STORE
+    - -DCAPDB_ENABLE_REPLICATION
     - -DCAPDB_ENABLE_FTS5
 
 ---
@@ -34,4 +36,48 @@ CompileFlags:
     - -DBUILD_capdb
     - -DCAPDB_ENABLE_POOL
     - -DCAPDB_ENABLE_NETWORK
+    - -DCAPDB_ENABLE_STORE
     - -DCAPDB_ENABLE_FTS5
+
+---
+If:
+  PathMatch: capdb/.*\.(c|h)
+CompileFlags:
+  Add:
+    - -std=gnu99
+    - -D_GNU_SOURCE
+    - -Ibuild/generated
+    - -Icapdb
+    - -Icapdb/pool
+    - -Icapdb/store
+    - -Icapdb/cluster
+    - -Icapdb/replication
+    - -Icapdb/proto
+    - -Icapdb/tls
+    - -Icapdb/client
+    - -Icapdb/server
+    - -Icapdb/vfs
+    - -DCAPDB_THREADSAFE=1
+    - -D_HAVE_CAPDB_CONFIG_H
+    - -DCAPDB_ENABLE_POOL
+    - -DCAPDB_ENABLE_NETWORK
+    - -DCAPDB_ENABLE_STORE
+    - -DCAPDB_ENABLE_REPLICATION
+
+---
+If:
+  PathMatch: tests/.*\.(c|h)
+CompileFlags:
+  Add:
+    - -std=gnu99
+    - -D_GNU_SOURCE
+    - -Ibuild/generated
+    - -Icapdb
+    - -Icapdb/pool
+    - -Icapdb/client
+    - -DCAPDB_THREADSAFE=1
+    - -D_HAVE_CAPDB_CONFIG_H
+    - -DCAPDB_ENABLE_POOL
+    - -DCAPDB_ENABLE_NETWORK
+    - -DCAPDB_ENABLE_STORE
+    - -DCAPDB_ENABLE_REPLICATION

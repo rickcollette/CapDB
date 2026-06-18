@@ -113,15 +113,24 @@ Parity checks: `python3 tools/py/tests/test_codegen_parity.py`
 ## Clean
 
 `make clean` inside `build/` only removes object files and binaries for that
-tree. Generated amalgamation sources, lemon debug output, and capsuite temp
-directories (`capdb_data_*`, etc.) are left behind.
+tree. It does **not** remove generated sources, CTest logs (`Testing/`), lemon
+debris, capsuite temp dirs (`capdb_data_*`), or other gitignored artifacts.
 
-From the **repository root**, use the full clean:
+From the **repository root**, use the full clean (aligned with [`.gitignore`](../.gitignore)):
 
 ```bash
-make clean          # all build/, build-*/ trees + repo test artifacts
-make distclean      # remove entire build directories (re-run cmake after)
+make clean          # sweep all build*/ trees + root gitignored artifacts
+make distclean      # delete entire build/, build-*/, cmake-build-*/ (re-run cmake after)
 ```
+
+`make clean` removes (among other things):
+
+- `build*/generated/`, `build*/Testing/`, `capdb_data_*` test dirs
+- Root `compile_commands.json`, `Testing/`, `*.plan.md`, `manifest.tags`
+- `parse.sql`, `parse.out`, `__pycache__/`, `.cursor/`
+
+`make distclean` additionally deletes whole `build/`, `build-*/`, `cmake-build-*/`,
+`dist/`, and `out/` directories.
 
 From a single build tree:
 
