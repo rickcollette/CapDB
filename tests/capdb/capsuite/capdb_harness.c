@@ -65,6 +65,19 @@ static int capsuite_verbose(void){
   return z && (z[0]=='1' || z[0]=='y' || z[0]=='Y');
 }
 
+static int capsuite_join_path(char *zOut, size_t nOut, const char *zDir,
+                              const char *zName){
+  size_t nDir, nName;
+  if( zOut==0 || nOut==0 || zDir==0 || zName==0 ) return -1;
+  nDir = strlen(zDir);
+  nName = strlen(zName);
+  if( nDir + 1 + nName + 1 > nOut ) return -1;
+  memcpy(zOut, zDir, nDir);
+  zOut[nDir] = '/';
+  memcpy(zOut+nDir+1, zName, nName+1);
+  return 0;
+}
+
 int capsuite_capdb_server_start(CapdbTestServer *p, int port){
   char zPort[32];
   char zListen[64];
@@ -116,13 +129,19 @@ int capsuite_capdb_server_start(CapdbTestServer *p, int port){
   p->port = port;
   if( p->bRepListen && p->repPort<=0 ) p->repPort = p->port + 1;
   snprintf(p->zDir, sizeof(p->zDir), "capdb_data_%d", port);
-  snprintf(p->zAuthFile, sizeof(p->zAuthFile), "%s/mnet_auth.txt", p->zDir);
+  if( capsuite_join_path(p->zAuthFile, sizeof(p->zAuthFile), p->zDir,
+                         "mnet_auth.txt")!=0 ){
+    return -1;
+  }
   snprintf(p->zDbRoot, sizeof(p->zDbRoot), "%s", p->zDir);
 
   capsuite_rm_rf(p->zDir);
   capsuite_mkdir_p(p->zDir);
   if( p->bVolume ){
-    snprintf(p->zVolumeRoot, sizeof(p->zVolumeRoot), "%s/volumes", p->zDir);
+    if( capsuite_join_path(p->zVolumeRoot, sizeof(p->zVolumeRoot), p->zDir,
+                           "volumes")!=0 ){
+      return -1;
+    }
     capsuite_mkdir_p(p->zVolumeRoot);
   }
   if( capsuite_write_file(p->zAuthFile, "testtoken\n") ) return -1;

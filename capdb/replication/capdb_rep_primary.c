@@ -19,6 +19,19 @@
 
 #define CAPDB_REP_MAX_REPLICAS 8
 
+static int repJoinPath(char *zOut, size_t nOut, const char *zDir,
+                       const char *zName){
+  size_t nDir, nName;
+  if( zOut==0 || nOut==0 || zDir==0 || zName==0 ) return CAPDB_MISUSE;
+  nDir = strlen(zDir);
+  nName = strlen(zName);
+  if( nDir + 1 + nName + 1 > nOut ) return CAPDB_TOOBIG;
+  memcpy(zOut, zDir, nDir);
+  zOut[nDir] = '/';
+  memcpy(zOut+nDir+1, zName, nName+1);
+  return CAPDB_OK;
+}
+
 static int repConstantTimeEq(const char *a, const char *b){
   size_t i;
   size_t la = a ? strlen(a) : 0;
@@ -97,6 +110,8 @@ static int repSendWalSegment(capdb_stream *s, const char *zPath){
 static void repBootstrapVolume(capdb_stream *s, const char *zVolPath){
   capdb_volume *pVol = 0;
   unsigned long long lsn = 0;
+  char zWalDir[1024];
+  char zWalName[32];
   char zSeg[1024];
   if( s==0 || zVolPath==0 ) return;
   if( capdb_volume_open(zVolPath, 0, &pVol)!=CAPDB_OK ) return;
@@ -104,8 +119,16 @@ static void repBootstrapVolume(capdb_stream *s, const char *zVolPath){
     capdb_volume_close(pVol);
     return;
   }
-  snprintf(zSeg, sizeof(zSeg), "%s/" CAPDB_STORE_DIR_WAL "/%08llu.wal",
-           zVolPath, lsn);
+  if( repJoinPath(zWalDir, sizeof(zWalDir), zVolPath,
+                  CAPDB_STORE_DIR_WAL)!=CAPDB_OK ){
+    capdb_volume_close(pVol);
+    return;
+  }
+  snprintf(zWalName, sizeof(zWalName), "%08llu.wal", lsn);
+  if( repJoinPath(zSeg, sizeof(zSeg), zWalDir, zWalName)!=CAPDB_OK ){
+    capdb_volume_close(pVol);
+    return;
+  }
   repSendWalSegment(s, zSeg);
   capdb_volume_close(pVol);
 }
@@ -135,7 +158,10 @@ static void repReplayVolumeWal(capdb_rep_sender *p, capdb_stream *s,
   int nAlloc = 0;
   int i;
   (void)p;
-  snprintf(zWalDir, sizeof(zWalDir), "%s/" CAPDB_STORE_DIR_WAL, zVolPath);
+  if( repJoinPath(zWalDir, sizeof(zWalDir), zVolPath,
+                  CAPDB_STORE_DIR_WAL)!=CAPDB_OK ){
+    return;
+  }
   d = opendir(zWalDir);
   if( d==0 ) return;
   while( (de = readdir(d))!=0 ){
@@ -145,7 +171,9 @@ static void repReplayVolumeWal(capdb_rep_sender *p, capdb_stream *s,
     WalSeg *slot;
     if( sscanf(de->d_name, "%08llu.wal", &lsn)!=1 ) continue;
     if( lsn<=fromLsn ) continue;
-    snprintf(zSeg, sizeof(zSeg), "%s/%s", zWalDir, de->d_name);
+    if( repJoinPath(zSeg, sizeof(zSeg), zWalDir, de->d_name)!=CAPDB_OK ){
+      continue;
+    }
     if( stat(zSeg, &st)!=0 || !S_ISREG(st.st_mode) ) continue;
     if( nSeg>=nAlloc ){
       nAlloc = nAlloc ? nAlloc*2 : 32;
@@ -175,7 +203,9 @@ static void repReplayToStream(capdb_rep_sender *p, capdb_stream *s,
     char zVol[1024];
     struct stat st;
     if( de->d_name[0]=='.' ) continue;
-    snprintf(zVol, sizeof(zVol), "%s/%s", zRoot, de->d_name);
+    if( repJoinPath(zVol, sizeof(zVol), zRoot, de->d_name)!=CAPDB_OK ){
+      continue;
+    }
     if( stat(zVol, &st)!=0 || !S_ISDIR(st.st_mode) ) continue;
     if( fromLsn==0 ) repBootstrapVolume(s, zVol);
     repReplayVolumeWal(p, s, zVol, fromLsn);

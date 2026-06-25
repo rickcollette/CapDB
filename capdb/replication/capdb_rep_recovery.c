@@ -12,6 +12,28 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+static int repRecoveryCopyPath(char *zOut, size_t nOut, const char *zIn){
+  size_t nIn;
+  if( zOut==0 || nOut==0 || zIn==0 ) return CAPDB_MISUSE;
+  nIn = strlen(zIn);
+  if( nIn + 1 > nOut ) return CAPDB_TOOBIG;
+  memcpy(zOut, zIn, nIn+1);
+  return CAPDB_OK;
+}
+
+static int repRecoveryJoinPath(char *zOut, size_t nOut, const char *zDir,
+                               const char *zName){
+  size_t nDir, nName;
+  if( zOut==0 || nOut==0 || zDir==0 || zName==0 ) return CAPDB_MISUSE;
+  nDir = strlen(zDir);
+  nName = strlen(zName);
+  if( nDir + 1 + nName + 1 > nOut ) return CAPDB_TOOBIG;
+  memcpy(zOut, zDir, nDir);
+  zOut[nDir] = '/';
+  memcpy(zOut+nDir+1, zName, nName+1);
+  return CAPDB_OK;
+}
+
 int capdb_rep_apply_wal_payload(capdb_volume *pVol, const CapdbStoreWalHdr *wh,
                                 const void *payload, int nPayload){
   char zVolPath[1024];
@@ -28,14 +50,22 @@ int capdb_rep_apply_wal_payload(capdb_volume *pVol, const CapdbStoreWalHdr *wh,
     if( (int)wh->generation < localGen ) return CAPDB_READONLY;
     if( (int)wh->generation > localGen ) return CAPDB_READONLY;
   }
-  snprintf(zVolPath, sizeof(zVolPath), "%s", capdb_volume_path(pVol));
+  if( repRecoveryCopyPath(zVolPath, sizeof(zVolPath),
+                          capdb_volume_path(pVol))!=CAPDB_OK ){
+    return CAPDB_IOERR;
+  }
   if( wh->wal_offset==CAPDB_STORE_WAL_OFFSET_MAIN_DB ){
     char zSqlMain[1024];
     char zSqlWal[1024];
     char zSqlShm[1024];
-    snprintf(zSqlMain, sizeof(zSqlMain), "%s/" CAPDB_STORE_MAIN_DB, zVolPath);
-    snprintf(zSqlWal, sizeof(zSqlWal), "%s/" CAPDB_STORE_MAIN_DB "-wal", zVolPath);
-    snprintf(zSqlShm, sizeof(zSqlShm), "%s/" CAPDB_STORE_MAIN_DB "-shm", zVolPath);
+    if( repRecoveryJoinPath(zSqlMain, sizeof(zSqlMain), zVolPath,
+                            CAPDB_STORE_MAIN_DB)!=CAPDB_OK
+     || repRecoveryJoinPath(zSqlWal, sizeof(zSqlWal), zVolPath,
+                            CAPDB_STORE_MAIN_DB "-wal")!=CAPDB_OK
+     || repRecoveryJoinPath(zSqlShm, sizeof(zSqlShm), zVolPath,
+                            CAPDB_STORE_MAIN_DB "-shm")!=CAPDB_OK ){
+      return CAPDB_IOERR;
+    }
     unlink(zSqlWal);
     unlink(zSqlShm);
     fd = open(zSqlMain, O_WRONLY|O_CREAT|O_TRUNC, 0644);
@@ -45,7 +75,10 @@ int capdb_rep_apply_wal_payload(capdb_volume *pVol, const CapdbStoreWalHdr *wh,
     close(fd);
     if( w!=nPayload ) return CAPDB_IOERR;
   }else{
-    snprintf(zSqlWal, sizeof(zSqlWal), "%s/" CAPDB_STORE_MAIN_DB "-wal", zVolPath);
+    if( repRecoveryJoinPath(zSqlWal, sizeof(zSqlWal), zVolPath,
+                            CAPDB_STORE_MAIN_DB "-wal")!=CAPDB_OK ){
+      return CAPDB_IOERR;
+    }
     fd = open(zSqlWal, O_RDWR|O_CREAT, 0644);
     if( fd<0 ) return CAPDB_IOERR;
     w = pwrite(fd, payload, (size_t)nPayload, (off_t)wh->wal_offset);
@@ -89,7 +122,10 @@ int capdb_rep_recovery_replay_dir(capdb_volume *pVol){
   capdb *db = 0;
   char *zErr = 0;
   if( pVol==0 ) return CAPDB_MISUSE;
-  snprintf(zWalDir, sizeof(zWalDir), "%s", capdb_volume_wal_dir(pVol));
+  if( repRecoveryCopyPath(zWalDir, sizeof(zWalDir),
+                          capdb_volume_wal_dir(pVol))!=CAPDB_OK ){
+    return CAPDB_IOERR;
+  }
   d = opendir(zWalDir);
   if( d==0 ) return CAPDB_OK;
   while( (e=readdir(d))!=0 ){
@@ -103,7 +139,11 @@ int capdb_rep_recovery_replay_dir(capdb_volume *pVol){
     }
     slot = &aSeg[nSeg++];
     slot->lsn = lsn;
-    snprintf(slot->zPath, sizeof(slot->zPath), "%s/%s", zWalDir, e->d_name);
+    if( repRecoveryJoinPath(slot->zPath, sizeof(slot->zPath), zWalDir,
+                            e->d_name)!=CAPDB_OK ){
+      nSeg--;
+      continue;
+    }
   }
   closedir(d);
   if( nSeg==0 ){ free(aSeg); return CAPDB_OK; }
