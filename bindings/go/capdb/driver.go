@@ -55,6 +55,9 @@ func init() {
 type Driver struct{}
 
 func (Driver) Open(dsn string) (driver.Conn, error) {
+	if dsn == "" {
+		return nil, fmt.Errorf("capdb: DSN cannot be empty")
+	}
 	c := &conn{}
 	curi := C.CString(dsn)
 	defer C.free(unsafe.Pointer(curi))

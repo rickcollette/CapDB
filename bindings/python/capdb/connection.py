@@ -25,12 +25,21 @@ class Connection:
         Args:
             dsn: Data source name (e.g., "capdb://host:port/db.capdb?token=secret")
             timeout: Connection timeout in seconds
+
+        Raises:
+            ValueError: If DSN format is invalid
+            OperationalError: If connection fails
         """
+        if not dsn:
+            raise ValueError("DSN cannot be empty")
         self.dsn = dsn
         self.timeout = timeout
+        if timeout <= 0:
+            raise ValueError("Timeout must be positive")
         self._db: Optional[sqlite3.Connection] = None
         self._mode = self._parse_dsn(dsn)
         self._lock = threading.RLock()
+        self._closed = False
         self._connect()
 
     def _parse_dsn(self, dsn: str) -> str:
@@ -60,7 +69,7 @@ class Connection:
 
     def cursor(self) -> "Cursor":
         """Create a new cursor."""
-        if self._db is None:
+        if self._closed or self._db is None:
             raise OperationalError("Connection is closed")
         return Cursor(self._db)
 
@@ -81,13 +90,15 @@ class Connection:
     def close(self):
         """Close the connection."""
         with self._lock:
-            if self._db is not None:
-                try:
-                    self._db.close()
-                except Exception:
-                    pass  # Ignore errors during cleanup
-                finally:
-                    self._db = None
+            if not self._closed:
+                if self._db is not None:
+                    try:
+                        self._db.close()
+                    except Exception:
+                        pass  # Ignore errors during cleanup
+                    finally:
+                        self._db = None
+                self._closed = True
 
     def __enter__(self):
         """Context manager entry."""
