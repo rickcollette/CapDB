@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(capdb VERSION 3.54.0 LANGUAGES C)
+project(capdb VERSION 3.6.1 LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

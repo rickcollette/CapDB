@@ -62,7 +62,7 @@ class TestCodegenParity(unittest.TestCase):
                 check=True,
             )
             text = out.read_text(encoding="utf-8")
-            self.assertIn('#define CAPDB_VERSION        "3.54.0"', text)
+            self.assertIn('#define CAPDB_VERSION        "3.6.1"', text)
             self.assertIn("#define CAPDB_VERSION_NUMBER", text)
             self.assertIn("#define CAPDB_SOURCE_ID", text)
             self.assertTrue(text.rstrip().endswith("#endif /* CAPDB3_H */"))

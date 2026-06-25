@@ -9,7 +9,7 @@ single-file amalgamation (`capdb.c` + `capdb.h`) or as a vendored subtree.
 
 The version lives in the [`VERSION`](../VERSION) file and is read by CMake
 (`project(capdb VERSION …)`) and the codegen. Release tags are `v<VERSION>`
-(e.g. `v3.54.0`).
+(e.g. `v3.6.1`).
 
 ## One-time: create the standalone repo
 

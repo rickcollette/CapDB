@@ -6,7 +6,7 @@
 > server, client) are licensed under the MIT License (© 2026 Rick Collette).
 > See [LICENSE](LICENSE) / [LICENSE.md](LICENSE.md).
 
-## Unreleased — Pure CapDB Language Drivers
+## CapDB 3.6.1 — Pure CapDB Language Drivers
 
 ### Language Drivers
 
