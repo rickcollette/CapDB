@@ -6,6 +6,125 @@
 > server, client) are licensed under the MIT License (© 2026 Rick Collette).
 > See [LICENSE](LICENSE) / [LICENSE.md](LICENSE.md).
 
+## Unreleased — Language Drivers & Network Improvements
+
+### Language Drivers
+
+Complete, production-ready drivers for Go, Rust, and Python:
+
+#### Go Driver (`bindings/go/`)
+- Full `database/sql` compatibility with connection pooling
+- Context cancellation and timeout support
+- Transaction support (BEGIN/COMMIT/ROLLBACK)
+- Prepared statements with parameter binding
+- Automatic timestamp parsing (`time.Time` scanning)
+- Multi-statement SQL execution
+- Comprehensive test suite with live server integration
+- Example applications demonstrating all features
+
+#### Rust Driver (`bindings/rust/`)
+- Safe FFI bindings to `libcapdb_client`
+- Support for Embedded, LocalServer, and HighAvailability modes
+- Error handling with custom error types (`thiserror`)
+- Connection pooling via `CapDbPool`
+- JSON query result support
+- Schema management helpers
+
+#### Python Driver (`bindings/python/`)
+- DB API 2.0 compliant (works with SQLAlchemy, Pandas)
+- Support for embedded and network modes
+- Thread-safe cursor and connection management
+- Context manager support for resource cleanup
+- Full error hierarchy matching DB API 2.0 spec
+- Type hints for IDE support
+
+### Network & Client Improvements
+
+#### Query Hang Robustness
+- Add connection liveness check in Go driver's `rows.Next()` before blocking on socket I/O
+- Prevents indefinite hangs when transport fails
+- Marks connection dead for pool eviction and reconnection
+
+#### DSN Token File Support
+- New `token_file=<path>` parameter for URI parsing
+- Reads authentication token from file (first line)
+- Enables systemd-friendly secret management via credential files
+
+#### Audit Logging Control
+- Add `--quiet` flag to `capdb-server` to suppress verbose audit output
+- Reduces test output noise during repeated startup failures
+- Configurable per-server instance via `bQuiet` in config
+
+#### Server Improvements
+- Suppress connection/auth audit logs in quiet mode
+- Improve error messages for auth failures
+- Support token file as alternative to inline token
+
+### Build Ergonomics
+
+#### Build Helper Scripts
+- `capdb-go-env.sh` — Auto-detects CapDB build directory and emits CGO flags
+- `capdb-rust-env.sh` — Sets up Rust FFI build environment
+- `capdb-python-env.sh` — Configures Python ctypes/cffi paths
+
+#### pkg-config Integration
+- `libcapdb_client.pc` template for standard toolchain queries
+- Enables `pkg-config --cflags --libs libcapdb_client` workflow
+- CMake installs pkg-config file to standard location
+
+#### CMake Updates
+- Install build helper scripts to `/usr/local/bin`
+- Install pkg-config file to `/usr/local/lib/pkgconfig`
+- Install language binding guides to `/usr/local/share/doc/capdb`
+
+### Documentation
+
+#### New Guides
+- `LANGUAGE_DRIVERS.md` — Overview and quick start for all three drivers
+- `docs/DRIVERS_GUIDE.md` — 500+ lines with installation, usage patterns, and integration examples
+- `docs/README.md` — Documentation index organized by role (Users, Developers, DevOps)
+- `BINDINGS_BUILD.md` — Comprehensive guide for integrating CapDB into language-specific projects
+
+#### Documentation Content
+- Multi-language examples (Go, Rust, Python)
+- Connection pooling configuration
+- Error handling patterns per language
+- Performance tuning and troubleshooting
+- SQLAlchemy and Pandas integration
+- Deployment considerations
+
+### Code Quality & Testing
+
+#### Go Driver
+- Nil checks in `rows.Next()` prevent panics on closed rows
+- DSN validation catches empty strings early
+- Explicit CAPDB_ROW/CAPDB_DONE constants for clarity
+- Integration tests for transactions, concurrency, timestamps
+- Context cancellation tests
+
+#### Python Driver
+- Fixed `cursor.description` to comply with DB API 2.0 (7-tuple format)
+- Added connection state tracking with `_closed` flag
+- Implemented idempotent `close()` to prevent double-close errors
+- Parameter validation with informative error messages
+- Proper error handling in connection cleanup
+
+#### Rust Driver
+- FFI bindings framework for `capdb_net_*` functions
+- Safe wrapper API with thiserror integration
+- Mode-specific connection validation
+
+### Breaking Changes
+
+None. All improvements are backward compatible.
+
+### Known Limitations
+
+1. Rust/Python network mode requires C FFI implementation (framework in place)
+2. Async support in Rust is placeholder (tokio integration planned)
+3. Prepared statement caching not yet implemented
+4. Python currently uses SQLite for embedded mode (CapDB native TBD)
+
 ## CapDB 3.54.0 — Full rebrand (breaking)
 
 This release renames the fork from **msqlite3** / SQLite product naming to **CapDB**.
