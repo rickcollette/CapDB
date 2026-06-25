@@ -32,6 +32,7 @@ Build with **CMake** — no Tcl required. Tests run via `ctest`, `capsuite`, and
 | **HA volumes** | `capdbstorevfs` volume layout, WAL segments, LSN tracking, sync replication |
 | **Replication** | Primary streams WAL to replicas; generation fencing and path jails |
 | **CLI** | Interactive `capdb` shell with dot-commands and batch mode |
+| **Drivers** | Go, Rust, and Python bindings for embedded and network SQL |
 
 ## Quick start
 
@@ -67,6 +68,24 @@ cd build && ctest --output-on-failure
 ```
 
 Generated sources (`capdb.c`, `capdb.h`, `shell.c`) are produced at build time under `build/generated/`. See [docs/LAYOUT.md](docs/LAYOUT.md).
+
+## Language Drivers
+
+CapDB ships production bindings for Go, Rust, and Python. They use CapDB APIs only: embedded connections call `capdb_open_v2` and the `capdb_*` statement API; network connections call `capdb_net_*`.
+
+| Language | Embedded SQL | Network SQL | Location |
+|----------|--------------|-------------|----------|
+| Go | `sql.Open("capdb-embedded", "local.capdb")` | `sql.Open("capdb", "capdb://...")` | `bindings/go/` |
+| Rust | `CapDbMode::Embedded { path }` | `CapDbMode::Network { uri }` | `bindings/rust/` |
+| Python | `capdb.connect("local.capdb")` | `capdb.connect("capdb://...")` | `bindings/python/` |
+
+Build helpers configure the local `libcapdb` path for each binding:
+
+```bash
+eval "$(./capdb-go-build-env.sh ./build)"
+source ./capdb-rust-build-env.sh ./build
+source ./capdb-python-build-env.sh ./build
+```
 
 ## Architecture
 

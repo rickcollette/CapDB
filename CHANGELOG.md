@@ -6,124 +6,35 @@
 > server, client) are licensed under the MIT License (© 2026 Rick Collette).
 > See [LICENSE](LICENSE) / [LICENSE.md](LICENSE.md).
 
-## Unreleased — Language Drivers & Network Improvements
+## Unreleased — Pure CapDB Language Drivers
 
 ### Language Drivers
 
-Initial language drivers for Go, Rust, and Python:
+- Go, Rust, and Python drivers now use CapDB APIs and CapDB libraries only.
+- Embedded SQL is backed by `capdb_open_v2`, prepared statements, parameter binding, row stepping, and finalization.
+- Network SQL is backed by `capdb_net_connect`, `capdb_net_exec`, `capdb_net_prepare`, `capdb_net_step`, and `capdb_net_finalize`.
+- Go provides `database/sql` drivers for `capdb://` network DSNs and local embedded database paths.
+- Rust provides FFI-backed `CapDbConnection` modes for embedded and network SQL, including execution and JSON row results.
+- Python provides a DB API 2.0 driver over `libcapdb` for embedded and network SQL.
 
-#### Go Driver (`bindings/go/`)
-- Full `database/sql` compatibility with connection pooling
-- Context cancellation and timeout support
-- Transaction support (BEGIN/COMMIT/ROLLBACK)
-- Prepared statements with parameter binding
-- Automatic timestamp parsing (`time.Time` scanning)
-- Multi-statement SQL execution
-- Comprehensive test suite with live server integration
-- Example applications demonstrating current driver features
+### Build
 
-#### Rust Driver (`bindings/rust/`)
-- Safe FFI bindings to `libcapdb`
-- Support for embedded and network SQL connections
-- Error handling with custom error types (`thiserror`)
-- JSON query result support
-- Schema management helpers
-
-#### Python Driver (`bindings/python/`)
-- DB API 2.0 compliant (works with SQLAlchemy, Pandas)
-- Network mode backed by `capdb_net_*`
-- Embedded mode backed by `capdb_open_v2` and prepared statements
-- Thread-safe cursor and connection management
-- Context manager support for resource cleanup
-- Full error hierarchy matching DB API 2.0 spec
-- Type hints for IDE support
+- Added the shared `libcapdb` target used by dynamic language bindings.
+- Installed language build environment helpers as `capdb-go-env`, `capdb-rust-env`, and `capdb-python-env`.
+- Kept binding documentation in the repository README and removed standalone binding guide files.
 
 ### Network & Client Improvements
 
-#### Query Hang Robustness
-- Add connection liveness check in Go driver's `rows.Next()` before blocking on socket I/O
-- Prevents indefinite hangs when transport fails
-- Marks connection dead for pool eviction and reconnection
+- Added Go network-driver liveness checks before blocking row reads.
+- Added `token_file=<path>` DSN support for file-backed authentication tokens.
+- Added `--quiet` server mode for suppressed audit output in controlled test and service environments.
 
-#### DSN Token File Support
-- New `token_file=<path>` parameter for URI parsing
-- Reads authentication token from file (first line)
-- Enables systemd-friendly secret management via credential files
+### Testing
 
-#### Audit Logging Control
-- Add `--quiet` flag to `capdb-server` to suppress verbose audit output
-- Reduces test output noise during repeated startup failures
-- Configurable per-server instance via `bQuiet` in config
-
-#### Server Improvements
-- Suppress connection/auth audit logs in quiet mode
-- Improve error messages for auth failures
-- Support token file as alternative to inline token
-
-### Build Ergonomics
-
-#### Build Helper Scripts
-- `capdb-go-env.sh` — Auto-detects CapDB build directory and emits CGO flags
-- `capdb-rust-env.sh` — Sets up Rust FFI build environment
-- `capdb-python-env.sh` — Configures Python ctypes paths
-
-#### pkg-config Integration
-- `libcapdb_client.pc` template for standard toolchain queries
-- Enables `pkg-config --cflags --libs libcapdb_client` workflow
-- CMake installs pkg-config file to standard location
-
-#### CMake Updates
-- Install build helper scripts to `/usr/local/bin`
-- Install pkg-config file to `/usr/local/lib/pkgconfig`
-- Install language binding guides to `/usr/local/share/doc/capdb`
-
-### Documentation
-
-#### New Guides
-- `LANGUAGE_DRIVERS.md` — Overview and quick start for all three drivers
-- `docs/DRIVERS_GUIDE.md` — 500+ lines with installation, usage patterns, and integration examples
-- `docs/README.md` — Documentation index organized by role (Users, Developers, DevOps)
-- `BINDINGS_BUILD.md` — Comprehensive guide for integrating CapDB into language-specific projects
-
-#### Documentation Content
-- Multi-language examples (Go, Rust, Python)
-- Connection pooling configuration
-- Error handling patterns per language
-- Performance tuning and troubleshooting
-- SQLAlchemy and Pandas integration
-- Deployment considerations
-
-### Code Quality & Testing
-
-#### Go Driver
-- Nil checks in `rows.Next()` prevent panics on closed rows
-- DSN validation catches empty strings early
-- Explicit CAPDB_ROW/CAPDB_DONE constants for clarity
-- Integration tests for transactions, concurrency, timestamps
-- Context cancellation tests
-
-#### Python Driver
-- Fixed `cursor.description` to comply with DB API 2.0 (7-tuple format)
-- Added connection state tracking with `_closed` flag
-- Implemented idempotent `close()` to prevent double-close errors
-- Parameter validation with informative error messages
-- Proper error handling in connection cleanup
-
-#### Rust Driver
-- FFI bindings framework for `capdb_net_*` functions
-- Safe wrapper API with thiserror integration
-- Mode-specific connection validation
-
-### Breaking Changes
-
-- Python bindings now require loadable `libcapdb` for both embedded and network modes.
-
-### Known Limitations
-
-1. Rust embedded mode remains a validation-only wrapper until wired to CapDB-owned FFI
-2. Async Rust APIs are not exposed; use blocking `CapDbConnection` from worker threads
-3. Prepared statement caching not yet implemented
-4. Python requires loadable `libcapdb`
+- Added embedded-driver conformance coverage for Go.
+- Added embedded and network driver coverage for Rust.
+- Verified Python embedded and network smoke paths against `libcapdb`.
+- Fixed the CapDB extension loader export-name warning in the generated amalgamation source path.
 
 ## CapDB 3.54.0 — Full rebrand (breaking)
 
@@ -160,15 +71,13 @@ There are **no compatibility shims**.
 ### Build
 
 - Codegen: `tool/py/mkcapdb.py`, `tool/py/mkcapdbh.py`
-- See [docs/REBRAND.md](docs/REBRAND.md) for migration details.
-
 Upstream SQLite merges will not apply cleanly after this rebrand.
 
 ### Documentation
 
 - User guide: [docs/CAPDB.md](docs/CAPDB.md)
 - Man pages: `capdb(1)`, `capdb-server(1)`
-- Pool / network: [capdb/pool/README.md](../capdb/pool/README.md), [capdb/README.md](../capdb/README.md)
+- Pool / network: [capdb/pool/README.md](capdb/pool/README.md), [capdb/README.md](capdb/README.md)
 
 ## Network server — review remediation (v2/v3)
 

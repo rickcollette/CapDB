@@ -717,7 +717,6 @@ endif()
 install(PROGRAMS capdb-go-build-env.sh DESTINATION bin RENAME capdb-go-env)
 install(PROGRAMS capdb-rust-build-env.sh DESTINATION bin RENAME capdb-rust-env)
 install(PROGRAMS capdb-python-build-env.sh DESTINATION bin RENAME capdb-python-env)
-install(FILES BINDINGS_BUILD.md DESTINATION share/doc/capdb)
 
 # ---------------------------------------------------------------------------
 # CPack

@@ -35,9 +35,8 @@ git -C . push -u origin main         # review, then push
    git push origin main --tags
    ```
 
-Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml),
-which builds, runs `ctest`, packages artifacts with `scripts/release.sh`, and
-attaches them to the GitHub Release.
+Create the GitHub Release from the pushed tag and attach the artifacts generated
+by `scripts/release.sh`.
 
 ## Release artifacts
 
@@ -51,7 +50,7 @@ attaches them to the GitHub Release.
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds and runs `ctest`
+[`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) builds and runs `ctest`
 on every push/PR (Ubuntu, OpenSSL + zlib).
 
 ## Building

@@ -2,7 +2,7 @@
 
 CapDB uses **CMake** and **Python 3** for builds and code generation. Tcl/JimTCL are not required.
 
-User guide: [CAPDB.md](CAPDB.md) · Layout: [LAYOUT.md](LAYOUT.md) · Migration: [REBRAND.md](REBRAND.md)
+User guide: [CAPDB.md](CAPDB.md) · Layout: [LAYOUT.md](LAYOUT.md)
 
 ## Quick start
 
@@ -43,6 +43,7 @@ cmake --install build --prefix /usr/local
 | `include/capdb_pool.h` | Pool header (if enabled) |
 | `include/capdb_client.h` | Client header (if enabled) |
 | `lib/libcapdb.a` | Static library |
+| `lib/libcapdb.so` | Shared library for embedded and network bindings |
 | `src/capdb.c` | Single-file amalgamation for vendoring |
 | `share/man/man1/capdb.1` | CLI man page |
 

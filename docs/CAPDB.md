@@ -5,7 +5,7 @@ CapDB is a hard fork of SQLite 3.54 with two major extensions:
 1. **Connection pool** (`capdb_pool_*`) — checkout/checkin API with WAL and busy-timeout defaults.
 2. **TLS network layer** (`capdb://`) — remote SQL and optional remote VFS.
 
-There are **no compatibility shims** for old `sqlite3` / `msqlite://` names. See [REBRAND.md](REBRAND.md) for migration.
+There are **no compatibility shims** for old `sqlite3` / `msqlite://` names.
 
 ## Quick build
 
@@ -47,7 +47,7 @@ Man page: [capdb(1)](../man/capdb.1)
   --insecure
 ```
 
-Man page: [capdb-server(1)](../capdb-server.1)
+Man page: [capdb-server(1)](../man/capdb-server.1)
 
 Full URI and client API details: [capdb/README.md](../capdb/README.md)
 
@@ -100,7 +100,6 @@ No Tcl / testfixture is required.
 |----------|----------|
 | [LAYOUT.md](LAYOUT.md) | Repository layout and codegen |
 | [BUILD.md](BUILD.md) | CMake build, install, codegen |
-| [REBRAND.md](REBRAND.md) | Breaking rename reference |
 | [CHANGELOG.md](../CHANGELOG.md) | Release notes |
 | [capdb(1)](../man/capdb.1) | CLI man page |
 | [capdb-server(1)](../man/capdb-server.1) | Server man page |
