@@ -323,15 +323,18 @@ func (r *rows) Next(dest []driver.Value) error {
 			return err
 		}
 	}
+	if r.st == nil {
+		return fmt.Errorf("capdb: rows already closed")
+	}
 	if C.capdb_net_alive(r.c.h) == 0 {
 		r.c.dead.Store(true)
 		return fmt.Errorf("capdb: connection lost (transport error)")
 	}
 	rc := C.capdb_net_step(r.st)
 	switch int(rc) {
-	case 100:
+	case 100: // CAPDB_ROW
 		// fall through
-	case 101:
+	case 101: // CAPDB_DONE
 		return io.EOF
 	default:
 		return r.c.err(rc)

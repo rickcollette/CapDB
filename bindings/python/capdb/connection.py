@@ -82,8 +82,12 @@ class Connection:
         """Close the connection."""
         with self._lock:
             if self._db is not None:
-                self._db.close()
-                self._db = None
+                try:
+                    self._db.close()
+                except Exception:
+                    pass  # Ignore errors during cleanup
+                finally:
+                    self._db = None
 
     def __enter__(self):
         """Context manager entry."""
@@ -136,10 +140,18 @@ class Cursor:
             else:
                 self._cursor = self._db.execute(operation, parameters)
 
-            # Update description from cursor
+            # Update description from cursor (DB API 2.0 format: name, type_code, display_size, internal_size, precision, scale, null_ok)
             if self._cursor.description:
                 self.description = [
-                    (col[0], None, None, None, None, None, None)
+                    (
+                        col[0],  # name
+                        None,    # type_code
+                        None,    # display_size
+                        None,    # internal_size
+                        None,    # precision
+                        None,    # scale
+                        None,    # null_ok
+                    )
                     for col in self._cursor.description
                 ]
             else:
