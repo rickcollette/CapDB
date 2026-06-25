@@ -75,8 +75,6 @@ auth.txt
 .DS_Store
 Thumbs.db
 *.log
-CLAUDE.md
-AGENTS.md
 
 
 # --- Fossil SCM artifact (upstream SQLite; not used with git) ---
