@@ -216,6 +216,20 @@ static int uriParse(const char *zUri, UriParams *u){
             if( nv >= sizeof(val) ) nv = sizeof(val)-1;
             memcpy(val, eq+1, nv); val[nv]=0;
             if( strcmp(key,"token")==0 ){ free(u->zToken); u->zToken = strdup(val); }
+            else if( strcmp(key,"token_file")==0 ){
+              char buf[4096];
+              FILE *f = fopen(val, "r");
+              if( f ){
+                if( fgets(buf, sizeof(buf), f) ){
+                  size_t len = strlen(buf);
+                  if( len > 0 && buf[len-1]=='\n' ) buf[len-1]=0;
+                  if( len > 1 && buf[len-2]=='\r' ) buf[len-2]=0;
+                  free(u->zToken);
+                  u->zToken = strdup(buf);
+                }
+                fclose(f);
+              }
+            }
             else if( strcmp(key,"ca")==0 ){ free(u->zCa); u->zCa = strdup(val); }
             else if( strcmp(key,"insecure")==0 ){
               u->bInsecure = (strcmp(val,"1")==0 || strcmp(val,"true")==0);

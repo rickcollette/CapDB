@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libcapdb_client
+Description: CapDB network client library
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lcapdb_client -lssl -lcrypto -lpthread
+Cflags: -I${includedir}
