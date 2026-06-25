@@ -129,9 +129,11 @@ static int serverUsesVolume(capdb_server *pSrv);
 /* ---- audit logging --------------------------------------------------------
 ** Structured stderr audit lines for connection/auth events so failed AUTH and
 ** unauthorized access are observable (review item S3). One line per event;
-** volume is bounded by the max-clients cap. */
-static void capdbAudit(const char *zEvent, const char *zPeer, const char *zDetail){
+** volume is bounded by the max-clients cap. Audit logging can be suppressed
+** with the --quiet flag via pSrv->cfg.bQuiet. */
+static void capdbAudit(capdb_server *pSrv, const char *zEvent, const char *zPeer, const char *zDetail){
   const char *p = (zPeer && zPeer[0]) ? zPeer : "?";
+  if( pSrv && pSrv->cfg.bQuiet ) return;
   if( zDetail && zDetail[0] ){
     fprintf(stderr, "capdb audit event=%s peer=%s detail=%s\n", zEvent, p, zDetail);
   }else{
@@ -1709,7 +1711,7 @@ static void sessionFree(Session *p){
   sessionResetDbState(p);
   free(p->zDbPath);
   p->zDbPath = 0;
-  capdbAudit("conn.close", p->zPeer, 0);
+  capdbAudit(p->pSrv, "conn.close", p->zPeer, 0);
   capdb_stream_close(p->pStream);
   free(p);
 }
@@ -1749,14 +1751,14 @@ static int sessionHandle(Session *p){
         if( capdb_auth_check_peer(p->pSrv->cfg.zAuthFile, method, zUser, zSecret,
                                   p->zPeer)==0 ){
           p->bAuthed = 1;
-          capdbAudit("auth.ok", p->zPeer,
+          capdbAudit(p->pSrv, "auth.ok", p->zPeer,
                      method==CAPDB_AUTH_PASSWORD ? (zUser ? zUser : "user") : "token");
           sessionSetRecvTimeout(p, CAPDB_IDLE_TIMEOUT_MS);
           capdb_buf_init(&reply);
           capdb_stream_send_frame(p->pStream, CAPDB_MSG_AUTH_OK, &reply);
           capdb_buf_clear(&reply);
         }else{
-          capdbAudit("auth.fail", p->zPeer,
+          capdbAudit(p->pSrv, "auth.fail", p->zPeer,
                      method==CAPDB_AUTH_PASSWORD ? (zUser ? zUser : "user") : "token");
           capdb_buf_init(&reply);
           capdb_buf_append_str(&reply, "authentication failed");
@@ -2003,7 +2005,7 @@ static void *acceptThread(void *pArg){
     sess->pStream = strm;
     sess->iTrackSlot = -1;
     capdbPeer(fd, sess->zPeer, sizeof(sess->zPeer));
-    capdbAudit("conn.accept", sess->zPeer, 0);
+    capdbAudit(pSrv, "conn.accept", sess->zPeer, 0);
     pthread_mutex_lock(&pSrv->poolMutex);
     slot = serverSessionFindSlot(pSrv);
     pthread_mutex_unlock(&pSrv->poolMutex);

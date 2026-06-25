@@ -31,6 +31,7 @@ typedef struct capdb_server_config {
   int poolMin;
   int poolMax;
   int bInsecure;
+  int bQuiet;                /* suppress audit logging */
 #if defined(CAPDB_ENABLE_REPLICATION)
   const char *zRepListen;
   const char *zRepPrimary;

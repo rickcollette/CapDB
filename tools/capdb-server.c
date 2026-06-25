@@ -38,6 +38,7 @@ static void usage(const char *zProg){
     "  --pool-min N         Minimum pool size (default 1)\n"
     "  --pool-max N         Maximum pool size (default 8)\n"
     "  --max-clients N      Max concurrent connections (default 256)\n"
+    "  --quiet              Suppress audit logging\n"
     "  --insecure           Disable TLS (development only)\n",
     zProg);
 }
@@ -74,6 +75,7 @@ int main(int argc, char **argv){
     else if( strcmp(z,"--pool-min")==0 && i+1<argc ) cfg.poolMin = atoi(argv[++i]);
     else if( strcmp(z,"--pool-max")==0 && i+1<argc ) cfg.poolMax = atoi(argv[++i]);
     else if( strcmp(z,"--max-clients")==0 && i+1<argc ) cfg.maxClients = atoi(argv[++i]);
+    else if( strcmp(z,"--quiet")==0 ) cfg.bQuiet = 1;
     else if( strcmp(z,"--insecure")==0 ) cfg.bInsecure = 1;
     else if( strcmp(z,"-h")==0 || strcmp(z,"--help")==0 ){ usage(argv[0]); return 0; }
     else { usage(argv[0]); return 1; }
