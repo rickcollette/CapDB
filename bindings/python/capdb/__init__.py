@@ -1,7 +1,7 @@
 """
 CapDB Python Driver
 
-A DB API 2.0-compliant driver for CapDB network and embedded modes.
+A DB API 2.0-compliant driver for CapDB embedded and network modes.
 
 Example:
     >>> import capdb

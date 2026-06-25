@@ -20,7 +20,8 @@ make -j4
 ```
 
 This produces:
-- `build/libcapdb.a` — Core CapDB library
+- `build/libcapdb.a` — Static CapDB library
+- `build/libcapdb.so` — Shared CapDB library for dynamic bindings
 - `build/libcapdb_client.a` — Network client library (for remote access)
 - `build/capdb-server` — Network server binary
 
@@ -54,8 +55,8 @@ import _ "capguard/internal/capdbdriver"
 // Network mode
 db, _ := sql.Open("capdb", "capdb://localhost:5432/mydb.capdb?token=secret&insecure=1")
 
-// Embedded mode (if configured)
-db, _ := sql.Open("capdb-embedded", "file:mydb.capdb")
+// Embedded mode
+embedded, _ := sql.Open("capdb-embedded", "mydb.capdb")
 ```
 
 ### DSN Parameters
@@ -75,14 +76,14 @@ db, _ := sql.Open("capdb-embedded", "file:mydb.capdb")
 
 ```bash
 source ./capdb-rust-build-env.sh ./build
-cargo build --features capdb
+cargo build
 ```
 
 ### Setup in Cargo.toml
 
 ```toml
 [dependencies]
-capdb = { path = "../CapDB/bindings/rust", features = ["network"] }
+capdb = { path = "../CapDB/bindings/rust" }
 ```
 
 ### Build Script (build.rs)
@@ -96,8 +97,7 @@ fn main() {
         .unwrap_or_else(|_| "./build".to_string());
     
     println!("cargo:rustc-link-search=native={}", capdb_build);
-    println!("cargo:rustc-link-lib=capdb_client");
-    println!("cargo:rustc-link-lib=capdb_store");
+    println!("cargo:rustc-link-lib=dylib=capdb");
     println!("cargo:rustc-link-lib=ssl");
     println!("cargo:rustc-link-lib=crypto");
     println!("cargo:rustc-link-lib=pthread");
@@ -110,8 +110,7 @@ fn main() {
 
 ```bash
 source ./capdb-python-build-env.sh ./build
-python3 -m pip install cffi
-python3 setup.py build_ext --inplace
+python3 -m pip install -e ./bindings/python
 ```
 
 ### Using ctypes (No Build Required)
@@ -121,7 +120,7 @@ import ctypes
 import os
 
 # Load the shared library
-capdb = ctypes.CDLL(os.path.join(CAPDB_BUILD, "libcapdb_client.so"))
+capdb = ctypes.CDLL(os.path.join(CAPDB_BUILD, "libcapdb.so"))
 
 # Define function signatures
 capdb.capdb_net_connect.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
@@ -129,7 +128,10 @@ capdb.capdb_net_connect.restype = ctypes.c_int
 
 # Use the library
 conn = ctypes.c_void_p()
-rc = capdb.capdb_net_connect(b"capdb://localhost:5432/db.capdb", conn)
+rc = capdb.capdb_net_connect(
+    b"capdb://localhost:5432/db.capdb",
+    ctypes.byref(conn),
+)
 ```
 
 ## C/C++ Language Binding

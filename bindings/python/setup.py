@@ -10,9 +10,7 @@ setup(
     license='MIT',
     packages=find_packages(),
     python_requires='>=3.8',
-    install_requires=[
-        'cffi>=1.15.0',
-    ],
+    install_requires=[],
     extras_require={
         'dev': ['pytest>=7.0', 'pytest-asyncio>=0.20.0', 'black>=23.0'],
         'async': ['asyncio-contextmanager>=1.0'],

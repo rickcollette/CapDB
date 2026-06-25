@@ -10,15 +10,10 @@ description = "Rust FFI bindings and safe wrapper for CapDB"
 name = "capdb_rs"
 path = "src/lib.rs"
 
-[[bin]]
-name = "capdb-test"
-path = "src/bin/test.rs"
-
 [dependencies]
 thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-libsqlite3-sys = "0.28"
 tokio = { version = "1", features = ["sync"] }
 
 [dev-dependencies]

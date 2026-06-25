@@ -175,4 +175,4 @@ int capdb_pool_stats(
 }  /* end of the 'extern "C"' block */
 #endif
 
-#endif /* __SQLITE3POOL_H_ */
+#endif /* __CAPDB_POOL_H_ */

@@ -1,5 +1,5 @@
 /*
-** capdb-server — TLS SQL server for remote SQLite access.
+** capdb-server — TLS SQL server for remote CapDB access.
 */
 #if defined(CAPDB_ENABLE_NETWORK) && defined(CAPDB_ENABLE_POOL)
 

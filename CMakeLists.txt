@@ -275,6 +275,7 @@ add_custom_target(capdb_codegen DEPENDS "${CAPDB_C}" "${SHELL_C}" "${CAPDB_H}")
 # libcapdb (amalgamation)
 # ---------------------------------------------------------------------------
 add_library(capdb STATIC "${CAPDB_C}")
+set_target_properties(capdb PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_dependencies(capdb capdb_codegen)
 target_include_directories(capdb PUBLIC "${CAPDB_GEN_DIR}")
 if(CAPDB_ENABLE_NETWORK)
@@ -309,6 +310,47 @@ if(CAPDB_ENABLE_NETWORK)
 endif()
 if(UNIX AND NOT APPLE)
   target_link_libraries(capdb PUBLIC m dl)
+endif()
+
+add_library(capdb_shared SHARED "${CAPDB_C}")
+set_target_properties(capdb_shared PROPERTIES
+  OUTPUT_NAME capdb
+  POSITION_INDEPENDENT_CODE ON
+)
+add_dependencies(capdb_shared capdb_codegen)
+target_include_directories(capdb_shared PUBLIC "${CAPDB_GEN_DIR}")
+if(CAPDB_ENABLE_NETWORK)
+  target_include_directories(capdb_shared PRIVATE
+    "${CAPDB_ROOT}/capdb"
+    "${CAPDB_ROOT}/capdb/proto"
+    "${CAPDB_ROOT}/capdb/tls"
+    "${CAPDB_ROOT}/capdb/client"
+    "${CAPDB_ROOT}/capdb/server"
+    "${CAPDB_ROOT}/capdb/shell"
+    "${CAPDB_ROOT}/capdb/vfs"
+  )
+endif()
+if(CAPDB_ENABLE_POOL)
+  target_include_directories(capdb_shared PRIVATE "${CAPDB_ROOT}/capdb/pool")
+endif()
+target_include_directories(capdb_shared PRIVATE
+  "${CAPDB_ROOT}/core"
+  "${CAPDB_ROOT}/extensions/rtree"
+  "${CAPDB_ROOT}/extensions/icu"
+  "${CAPDB_ROOT}/extensions/fts3"
+  "${CAPDB_ROOT}/extensions/session"
+  "${CAPDB_ROOT}/extensions/misc"
+)
+target_compile_definitions(capdb_shared PRIVATE ${CAPDB_COMPILE_DEFS})
+target_link_libraries(capdb_shared PUBLIC Threads::Threads)
+if(ZLIB_FOUND)
+  target_link_libraries(capdb_shared PUBLIC ZLIB::ZLIB)
+endif()
+if(CAPDB_ENABLE_NETWORK)
+  target_link_libraries(capdb_shared PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+endif()
+if(UNIX AND NOT APPLE)
+  target_link_libraries(capdb_shared PUBLIC m dl)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -357,6 +399,7 @@ if(CAPDB_ENABLE_STORE)
     )
   endif()
   add_library(capdb_store STATIC ${CAPDB_STORE_SRCS})
+  set_target_properties(capdb_store PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_include_directories(capdb_store PUBLIC
     "${CAPDB_ROOT}"
     "${CAPDB_GEN_DIR}"
@@ -377,6 +420,7 @@ if(CAPDB_ENABLE_STORE)
   elseif(CAPDB_ENABLE_NETWORK)
     target_link_libraries(capdb_store PUBLIC OpenSSL::SSL OpenSSL::Crypto)
   endif()
+  target_link_libraries(capdb_shared PUBLIC capdb_store)
 
   add_executable(capdb-ctl tools/capdb-ctl.c)
   target_include_directories(capdb-ctl PRIVATE
@@ -400,13 +444,14 @@ endif()
 # Network client + server
 # ---------------------------------------------------------------------------
 if(CAPDB_ENABLE_NETWORK)
-  add_library(capdb_client STATIC
+  set(CAPDB_CLIENT_SRCS
     capdb/proto/capdb_proto.c
     capdb/capdb_io.c
     capdb/tls/capdb_tls.c
     capdb/client/capdb_client.c
     capdb/vfs/capdb_vfs.c
   )
+  add_library(capdb_client STATIC ${CAPDB_CLIENT_SRCS})
   target_include_directories(capdb_client PUBLIC
     "${CAPDB_ROOT}"
     "${CAPDB_GEN_DIR}"
@@ -639,7 +684,7 @@ enable_testing()
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
-install(TARGETS capdb capdb_cli
+install(TARGETS capdb capdb_shared capdb_cli
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
@@ -681,7 +726,7 @@ set(CPACK_PACKAGE_NAME "capdb")
 set(CPACK_PACKAGE_VENDOR "rickcollette")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-    "CapDB — a SQLite fork with connection pooling and TLS networking")
+    "CapDB SQL engine with connection pooling and TLS networking")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/rickcollette/capdb")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.md")
 set(CPACK_PACKAGE_FILE_NAME

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// timeLayout matches SQLite's timestamp format for round-trip compatibility.
+// timeLayout matches CapDB's timestamp format for round-trip compatibility.
 const timeLayout = "2006-01-02 15:04:05.999999999-07:00"
 
 // substitute replaces positional `?` placeholders with SQL literals of arguments.
@@ -21,6 +21,7 @@ func substitute(query string, args []driver.Value) (string, error) {
 	b.Grow(len(query) + 16*len(args))
 
 	argi := 0
+	maxArg := 0
 	i := 0
 	n := len(query)
 	for i < n {
@@ -80,7 +81,24 @@ func substitute(query string, args []driver.Value) (string, error) {
 			i = j
 		case c == '?':
 			if i+1 < n && query[i+1] >= '0' && query[i+1] <= '9' {
-				return "", fmt.Errorf("capdb: numbered placeholders (?NNN) are not supported; use positional ?")
+				j := i + 1
+				for j < n && query[j] >= '0' && query[j] <= '9' {
+					j++
+				}
+				idx64, err := strconv.ParseInt(query[i+1:j], 10, 32)
+				if err != nil || idx64 <= 0 || int(idx64) > len(args) {
+					return "", fmt.Errorf("capdb: not enough arguments for placeholders (have %d)", len(args))
+				}
+				lit, err := encodeLiteral(args[int(idx64)-1])
+				if err != nil {
+					return "", err
+				}
+				b.WriteString(lit)
+				if int(idx64) > maxArg {
+					maxArg = int(idx64)
+				}
+				i = j
+				continue
 			}
 			if argi >= len(args) {
 				return "", fmt.Errorf("capdb: not enough arguments for placeholders (have %d)", len(args))
@@ -91,19 +109,22 @@ func substitute(query string, args []driver.Value) (string, error) {
 			}
 			b.WriteString(lit)
 			argi++
+			if argi > maxArg {
+				maxArg = argi
+			}
 			i++
 		default:
 			b.WriteByte(c)
 			i++
 		}
 	}
-	if argi != len(args) {
-		return "", fmt.Errorf("capdb: %d arguments provided but %d placeholders consumed", len(args), argi)
+	if maxArg != len(args) {
+		return "", fmt.Errorf("capdb: %d arguments provided but %d placeholders consumed", len(args), maxArg)
 	}
 	return b.String(), nil
 }
 
-// encodeLiteral renders a driver.Value as a SQLite SQL literal.
+// encodeLiteral renders a driver.Value as a CapDB SQL literal.
 func encodeLiteral(v driver.Value) (string, error) {
 	switch t := v.(type) {
 	case nil:
@@ -195,7 +216,15 @@ func countPlaceholders(query string) int {
 			i = j + 2
 		case c == '?':
 			if i+1 < n && query[i+1] >= '0' && query[i+1] <= '9' {
-				i++
+				j := i + 1
+				for j < n && query[j] >= '0' && query[j] <= '9' {
+					j++
+				}
+				idx64, err := strconv.ParseInt(query[i+1:j], 10, 32)
+				if err == nil && int(idx64) > count {
+					count = int(idx64)
+				}
+				i = j
 				continue
 			}
 			count++

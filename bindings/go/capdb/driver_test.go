@@ -108,8 +108,8 @@ func TestConformance(t *testing.T) {
 	}
 
 	var (
-		name string
-		nm   sql.NullString
+		name  string
+		nm    sql.NullString
 		score float64
 		data  []byte
 	)
@@ -263,5 +263,69 @@ func TestTimestamps(t *testing.T) {
 	}
 	if createdAt.IsZero() {
 		t.Fatal("timestamp should not be zero")
+	}
+}
+
+func TestEmbeddedConformance(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "embedded.capdb")
+	db, err := sql.Open("capdb-embedded", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if _, err := db.Exec(`CREATE TABLE t(
+		id    INTEGER PRIMARY KEY,
+		name  TEXT,
+		score REAL,
+		data  BLOB,
+		note  TEXT
+	)`); err != nil {
+		t.Fatalf("create embedded: %v", err)
+	}
+
+	blob := []byte{0x00, 0x01, 0xfe}
+	res, err := db.Exec(`INSERT INTO t(name, score, data, note) VALUES(?,?,?,?)`,
+		"alice", 9.5, blob, nil)
+	if err != nil {
+		t.Fatalf("insert embedded: %v", err)
+	}
+	if id, _ := res.LastInsertId(); id != 1 {
+		t.Fatalf("embedded LastInsertId = %d, want 1", id)
+	}
+
+	var (
+		id    int64
+		name  string
+		score float64
+		data  []byte
+		note  sql.NullString
+	)
+	if err := db.QueryRow(`SELECT id,name,score,data,note FROM t`).Scan(
+		&id, &name, &score, &data, &note,
+	); err != nil {
+		t.Fatalf("query embedded: %v", err)
+	}
+	if id != 1 || name != "alice" || score != 9.5 || string(data) != string(blob) || note.Valid {
+		t.Fatalf("embedded roundtrip mismatch: id=%d name=%q score=%v data=%x note.valid=%v",
+			id, name, score, data, note.Valid)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`INSERT INTO t(name) VALUES(?)`, "rolled-back"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM t`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("embedded rollback count = %d, want 1", count)
 	}
 }

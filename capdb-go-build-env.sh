@@ -16,7 +16,7 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-CAPDB_BUILD="$1"
+CAPDB_BUILD="$(cd "$1" && pwd)"
 CAPDB_CLIENT="${CAPDB_BUILD}/../capdb/client"
 CAPDB_GENERATED="${CAPDB_BUILD}/generated"
 
@@ -37,6 +37,7 @@ CFLAGS="$CFLAGS -I$(cd "$CAPDB_GENERATED" && pwd)"
 CFLAGS="$CFLAGS -DCAPDB_ENABLE_NETWORK=1"
 
 LDFLAGS="-L$(cd "$CAPDB_BUILD" && pwd)"
+LDFLAGS="$LDFLAGS -Wl,-rpath,$(cd "$CAPDB_BUILD" && pwd)"
 LDFLAGS="$LDFLAGS -Wl,--start-group -lcapdb -lcapdb_store -Wl,--end-group"
 LDFLAGS="$LDFLAGS -lssl -lcrypto -lpthread -lm"
 

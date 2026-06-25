@@ -3,7 +3,7 @@
 #
 # Usage:
 #   source ./capdb-rust-build-env.sh /path/to/capdb/build
-#   cargo build --features capdb
+#   cargo build
 
 set -e
 
@@ -12,7 +12,7 @@ if [ $# -ne 1 ]; then
     echo "" >&2
     echo "Example:" >&2
     echo "  source $0 ../CapDB/build" >&2
-    echo "  cargo build --features capdb" >&2
+    echo "  cargo build" >&2
     exit 1
 fi
 

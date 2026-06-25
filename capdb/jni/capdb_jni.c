@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-JNIEXPORT jlong JNICALL Java_org_sqlite_jni_wrapper1_Sqlite_connectRemoteNative(
+JNIEXPORT jlong JNICALL Java_org_capdb_jni_wrapper1_Capdb_connectRemoteNative(
   JNIEnv *env, jclass cls, jstring jUri
 ){
   const char *zUri;
@@ -30,7 +30,7 @@ JNIEXPORT jlong JNICALL Java_org_sqlite_jni_wrapper1_Sqlite_connectRemoteNative(
   return (jlong)(intptr_t)p;
 }
 
-JNIEXPORT void JNICALL Java_org_sqlite_jni_wrapper1_Sqlite_closeRemoteNative(
+JNIEXPORT void JNICALL Java_org_capdb_jni_wrapper1_Capdb_closeRemoteNative(
   JNIEnv *env, jclass cls, jlong ptr
 ){
   capdb_conn *p = (capdb_conn*)(intptr_t)ptr;
@@ -38,7 +38,7 @@ JNIEXPORT void JNICALL Java_org_sqlite_jni_wrapper1_Sqlite_closeRemoteNative(
   capdb_net_close(p);
 }
 
-JNIEXPORT jint JNICALL Java_org_sqlite_jni_wrapper1_Sqlite_execRemoteNative(
+JNIEXPORT jint JNICALL Java_org_capdb_jni_wrapper1_Capdb_execRemoteNative(
   JNIEnv *env, jclass cls, jlong ptr, jstring jSql
 ){
   capdb_conn *p = (capdb_conn*)(intptr_t)ptr;

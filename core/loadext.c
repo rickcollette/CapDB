@@ -658,11 +658,11 @@ static int capdbLoadExtension(
       return CAPDB_NOMEM_BKPT;
     }
     do{
-      memcpy(zAltEntry, "capdb_", 8);
+      memcpy(zAltEntry, "capdb_", 6);
       for(iFile=ncFile-1; iFile>=0 && !DirSep(zFile[iFile]); iFile--){}
       iFile++;
       if( capdb_strnicmp(zFile+iFile, "lib", 3)==0 ) iFile += 3;
-      for(iEntry=8; (c = zFile[iFile])!=0 && c!='.'; iFile++){
+      for(iEntry=6; (c = zFile[iFile])!=0 && c!='.'; iFile++){
         if( capdbIsalpha(c) || (cnt && capdbIsdigit(c)) ){
           zAltEntry[iEntry++] = (char)capdbUpperToLower[(unsigned)c];
         }

@@ -1,14 +1,29 @@
 # CapDB Language Drivers
 
-Complete, production-ready language bindings for CapDB in Go, Rust, and Python.
+Language bindings for CapDB in Go, Rust, and Python.
 
 ## Overview
 
 | Language | Status | Features | Location |
 |----------|--------|----------|----------|
-| **Go** | ✅ Complete | database/sql, context support, connection pooling, timestamp parsing | `bindings/go/` |
-| **Rust** | 🚧 Ready | FFI bindings, safe wrapper, connection management, error handling | `bindings/rust/` |
-| **Python** | ✅ Complete | DB API 2.0, embedded + network modes, thread-safe | `bindings/python/` |
+| **Go** | Network + embedded SQL ready | database/sql drivers, context support, pooling via database/sql, timestamp parsing | `bindings/go/` |
+| **Rust** | Network + embedded SQL ready | FFI-backed connections, execution, JSON query results, errors | `bindings/rust/` |
+| **Python** | Network + embedded SQL ready | DB API 2.0, ctypes over `libcapdb`, thread-safe | `bindings/python/` |
+
+## Coverage Target
+
+The language drivers cover both CapDB SQL execution modes. Lower-level administrative surfaces are tracked separately from SQL-driver conformance:
+
+| Area | Go | Rust | Python |
+|------|----|------|--------|
+| Embedded SQL (`capdb_open_v2`, prepare/bind/step/finalize) | Covered | Covered | Covered |
+| Network SQL (`capdb_net_connect`, exec, prepare/step/finalize, values) | Covered | Covered | Covered |
+| SQL transactions and result metadata | Covered | Covered | Covered |
+| Driver-level pooling | Covered by `database/sql` | Use application pool over `CapDbConnection` | Use application pool over DB API connections |
+| Remote VFS registration and raw VFS RPC | C API only | C API only | C API only |
+| Store, replication, and cluster administration | C API / tools only | C API / tools only | C API / tools only |
+
+The loadable library for dynamic bindings is the full `libcapdb` shared library, because it exports the embedded API and the network API together.
 
 ## Quick Start
 
@@ -27,6 +42,7 @@ go test -tags capdb ./capdb
 import _ "capdb/capdb"
 
 db, _ := sql.Open("capdb", "capdb://localhost:5432/db.capdb?token=secret&insecure=1")
+embedded, _ := sql.Open("capdb-embedded", "local.capdb")
 rows, _ := db.Query("SELECT * FROM users")
 ```
 
@@ -35,18 +51,18 @@ rows, _ := db.Query("SELECT * FROM users")
 ```bash
 # Build
 cd bindings/rust
-cargo build --features network
+cargo build
 
 # Test
 cargo test
 
 # Use
-use capdb::CapDbMode;
+use capdb::{CapDbConnection, CapDbMode};
 
-let mode = CapDbMode::LocalServer {
+let mode = CapDbMode::Network {
     uri: "capdb://localhost:5432/db.capdb?token=secret".to_string(),
 };
-let conn = capdb::CapDbConnection::open(mode)?;
+let conn = CapDbConnection::open(mode)?;
 ```
 
 ### Python Driver
@@ -59,7 +75,8 @@ pip install -e .
 # Use
 import capdb
 
-conn = capdb.connect("file:test.capdb")
+conn = capdb.connect("capdb://localhost:5432/test.capdb?token=secret&insecure=1")
+embedded = capdb.connect("local.capdb")
 cursor = conn.cursor()
 cursor.execute("SELECT * FROM users")
 rows = cursor.fetchall()
@@ -112,7 +129,7 @@ err = db.QueryRow("SELECT created_at FROM users WHERE id = 1").Scan(&createdAt)
 ```bash
 CGO_ENABLED=1
 CGO_CFLAGS=-I/path/to/CapDB/capdb/client -DCAPDB_ENABLE_NETWORK=1
-CGO_LDFLAGS=-L/path/to/build -lcapdb_client -lssl -lcrypto -lpthread
+CGO_LDFLAGS=-L/path/to/build -Wl,-rpath,/path/to/build -lcapdb -lcapdb_store -lssl -lcrypto -lpthread -lm
 ```
 
 ### Tests
@@ -127,10 +144,8 @@ make test
 
 - **Safe FFI** — Zero-cost bindings with Rust safety guarantees
 - **Error handling** — Custom error types with thiserror
-- **Connection modes** — Embedded, LocalServer, HighAvailability
-- **Async support** — tokio-compatible (optional)
+- **Connection modes** — Embedded and Network
 - **Type safety** — Strong types for SQL values
-- **Pool support** — Thread-safe connection pooling
 
 ### API Example
 
@@ -138,8 +153,8 @@ make test
 use capdb::{CapDbMode, CapDbConnection, Result};
 
 fn main() -> Result<()> {
-    let mode = CapDbMode::Embedded {
-        path: "test.capdb".into(),
+    let mode = CapDbMode::Network {
+        uri: "capdb://localhost:5432/test.capdb?token=secret".to_string(),
     };
     
     let conn = CapDbConnection::open(mode)?;
@@ -184,7 +199,7 @@ cargo test
 - **DB API 2.0 compliant** — Works with sqlalchemy, pandas, etc.
 - **Context managers** — Clean resource management
 - **Thread-safe** — Automatic locking for concurrent access
-- **Dual mode support** — Embedded and network connections
+- **Embedded and network support** — Local files and CapDB server connections through `libcapdb`
 - **Type hints** — Full type annotation for IDE support
 - **Error handling** — DB API 2.0 exception hierarchy
 
@@ -193,11 +208,14 @@ cargo test
 ```python
 import capdb
 
-# Create/open connection
-conn = capdb.connect("file:test.capdb")
+# Network connection
+conn = capdb.connect("capdb://localhost:5432/test.capdb?token=secret&insecure=1")
+
+# Embedded connection
+embedded = capdb.connect("local.capdb")
 
 # Context manager (auto-commit/rollback)
-with capdb.connect("file:test.capdb") as conn:
+with capdb.connect("local.capdb") as conn:
     cursor = conn.cursor()
     
     # Execute DDL
@@ -229,10 +247,7 @@ conn.close()
 ```python
 from sqlalchemy import create_engine
 
-# Embedded mode
-engine = create_engine("capdb:///file:test.capdb")
-
-# Note: Network mode requires C FFI implementation
+engine = create_engine("capdb://localhost:5432/test.capdb?token=secret&insecure=1")
 ```
 
 ### Tests
@@ -264,9 +279,6 @@ capdb://[user:password@]host:port/database.capdb?param1=value1&param2=value2
 ### Examples
 
 ```
-# Local embedded database
-file:test.capdb
-
 # Network with token auth
 capdb://localhost:5432/app.capdb?token=secret&insecure=1
 
@@ -341,10 +353,7 @@ db.SetMaxIdleConns(5)
 db.SetConnMaxLifetime(5 * time.Minute)
 ```
 
-**Rust**: Manual pool management with CapDbPool
-```rust
-let pool = CapDbPool::new(mode, 10)?;
-```
+**Rust**: Use an application-level pool of `CapDbConnection` objects.
 
 **Python**: SQLAlchemy pool (when using ORM)
 ```python
@@ -362,18 +371,12 @@ engine = create_engine(..., poolclass=QueuePool, pool_size=10)
 ## Concurrency
 
 **Go**: Thread-safe via database/sql; use connection pool
-**Rust**: !Send + !Sync; use CapDbPool for concurrent access
+**Rust**: `CapDbConnection` wraps one native handle; use one connection per concurrent worker.
 **Python**: Thread-safe with automatic locking; use connection pool
 
-## Migration from SQLite
+## CapDB-Only Driver Names
 
 ```go
-// Go: Just change driver name
-// Before:
-// import _ "github.com/mattn/go-sqlite3"
-// db, _ := sql.Open("sqlite3", "file:test.db")
-
-// After:
 import _ "capdb/capdb"
 db, _ := sql.Open("capdb", "capdb://localhost:5432/test.capdb?token=secret")
 ```
@@ -413,9 +416,9 @@ pytest -v
 
 ### Known Limitations
 
-1. **Network mode** requires C FFI bindings (in progress for Rust/Python)
-2. **Async support** in Rust is placeholder (tokio integration coming)
-3. **Python** currently uses SQLite embedded; network mode TBD
+1. **Embedded mode** is not exposed until it is backed by CapDB's own C API
+2. Async Rust APIs are not exposed; use blocking `CapDbConnection` from a worker thread
+3. **Python** requires `libcapdb` at runtime
 4. **Prepared statement caching** not yet implemented
 5. **Rust** FFI bindings are framework-only (C layer connections TBD)
 

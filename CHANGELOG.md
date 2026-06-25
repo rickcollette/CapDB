@@ -10,7 +10,7 @@
 
 ### Language Drivers
 
-Complete, production-ready drivers for Go, Rust, and Python:
+Initial language drivers for Go, Rust, and Python:
 
 #### Go Driver (`bindings/go/`)
 - Full `database/sql` compatibility with connection pooling
@@ -20,19 +20,19 @@ Complete, production-ready drivers for Go, Rust, and Python:
 - Automatic timestamp parsing (`time.Time` scanning)
 - Multi-statement SQL execution
 - Comprehensive test suite with live server integration
-- Example applications demonstrating all features
+- Example applications demonstrating current driver features
 
 #### Rust Driver (`bindings/rust/`)
-- Safe FFI bindings to `libcapdb_client`
-- Support for Embedded, LocalServer, and HighAvailability modes
+- Safe FFI bindings to `libcapdb`
+- Support for embedded and network SQL connections
 - Error handling with custom error types (`thiserror`)
-- Connection pooling via `CapDbPool`
 - JSON query result support
 - Schema management helpers
 
 #### Python Driver (`bindings/python/`)
 - DB API 2.0 compliant (works with SQLAlchemy, Pandas)
-- Support for embedded and network modes
+- Network mode backed by `capdb_net_*`
+- Embedded mode backed by `capdb_open_v2` and prepared statements
 - Thread-safe cursor and connection management
 - Context manager support for resource cleanup
 - Full error hierarchy matching DB API 2.0 spec
@@ -65,7 +65,7 @@ Complete, production-ready drivers for Go, Rust, and Python:
 #### Build Helper Scripts
 - `capdb-go-env.sh` — Auto-detects CapDB build directory and emits CGO flags
 - `capdb-rust-env.sh` — Sets up Rust FFI build environment
-- `capdb-python-env.sh` — Configures Python ctypes/cffi paths
+- `capdb-python-env.sh` — Configures Python ctypes paths
 
 #### pkg-config Integration
 - `libcapdb_client.pc` template for standard toolchain queries
@@ -116,14 +116,14 @@ Complete, production-ready drivers for Go, Rust, and Python:
 
 ### Breaking Changes
 
-None. All improvements are backward compatible.
+- Python bindings now require loadable `libcapdb` for both embedded and network modes.
 
 ### Known Limitations
 
-1. Rust/Python network mode requires C FFI implementation (framework in place)
-2. Async support in Rust is placeholder (tokio integration planned)
+1. Rust embedded mode remains a validation-only wrapper until wired to CapDB-owned FFI
+2. Async Rust APIs are not exposed; use blocking `CapDbConnection` from worker threads
 3. Prepared statement caching not yet implemented
-4. Python currently uses SQLite for embedded mode (CapDB native TBD)
+4. Python requires loadable `libcapdb`
 
 ## CapDB 3.54.0 — Full rebrand (breaking)
 
