@@ -396,12 +396,28 @@ cd bindings/python
 pytest -v
 ```
 
-## Known Limitations
+## Status & Improvements
+
+### Recent Improvements (Code Review Rounds 1-2)
+
+**Round 1 - Critical Fixes:**
+- Go: Added nil checks in rows.Next() to prevent panics on closed rows
+- Python: Fixed cursor.description to comply with DB API 2.0 specification
+- Python: Added proper error handling in connection cleanup
+
+**Round 2 - Robustness:**
+- Go: Added DSN validation to catch invalid inputs early
+- Python: Added connection state tracking with _closed flag
+- Python: Implemented idempotent close() to prevent double-close errors
+- Python: Better parameter validation with informative error messages
+
+### Known Limitations
 
 1. **Network mode** requires C FFI bindings (in progress for Rust/Python)
 2. **Async support** in Rust is placeholder (tokio integration coming)
 3. **Python** currently uses SQLite embedded; network mode TBD
 4. **Prepared statement caching** not yet implemented
+5. **Rust** FFI bindings are framework-only (C layer connections TBD)
 
 ## Contributing
 
