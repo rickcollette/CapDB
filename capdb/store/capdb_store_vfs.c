@@ -17,7 +17,7 @@ struct StoreFile {
   capdb_file base;
   capdb_file *pReal;
   capdb_volume *pVol;
-  char *zRealPath;
+  const char *zRealPath;
   int bWal;
 };
 
@@ -158,7 +158,7 @@ static int storeWrapClose(capdb_file *pFile){
   }
   if( p->pVol ) storeVolumeRelease(&gStoreVfs, p->pVol);
   free(p->pReal);
-  free(p->zRealPath);
+  capdb_free_filename(p->zRealPath);
   p->pReal = 0;
   p->pVol = 0;
   p->zRealPath = 0;
@@ -330,7 +330,7 @@ static int storeWrapOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
     if( p->pVol ) storeVolumeRelease(pV, p->pVol);
     return CAPDB_NOMEM;
   }
-  p->zRealPath = strdup(zReal);
+  p->zRealPath = capdb_create_filename(zReal, "", "", 0, 0);
   if( p->zRealPath==0 ){
     free(p->pReal);
     if( p->pVol ) storeVolumeRelease(pV, p->pVol);
@@ -341,7 +341,7 @@ static int storeWrapOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
   rc = pV->pParent->xOpen(pV->pParent, p->zRealPath, p->pReal, flags, pOutFlags);
   if( rc!=CAPDB_OK ){
     free(p->pReal);
-    free(p->zRealPath);
+    capdb_free_filename(p->zRealPath);
     if( p->pVol ) storeVolumeRelease(pV, p->pVol);
     p->pReal = 0;
     p->pVol = 0;
@@ -352,7 +352,7 @@ static int storeWrapOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
    && (*pOutFlags & CAPDB_OPEN_READONLY) ){
     if( p->pReal->pMethods ) p->pReal->pMethods->xClose(p->pReal);
     free(p->pReal);
-    free(p->zRealPath);
+    capdb_free_filename(p->zRealPath);
     if( p->pVol ) storeVolumeRelease(pV, p->pVol);
     p->pReal = 0;
     p->pVol = 0;
