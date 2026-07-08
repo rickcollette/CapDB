@@ -9,9 +9,11 @@ capdb-server \- CapDB TLS SQL server
 .B capdb-server
 accepts client connections over TLS (or plain TCP in insecure mode),
 authenticates them, and executes SQL against database files under a
-configured root directory. Each database path uses a
+configured root directory. In legacy storage mode, each database path uses a
 .BR capdb_pool (3)
-connection pool on the server side.
+connection pool on the server side. In volume storage mode, database paths
+resolve to CapDB volumes under
+.BR \-\-volume-root .
 .PP
 Clients connect with the
 .B capdb://
@@ -41,17 +43,60 @@ Optional client CA bundle for mutual TLS.
 .B \-\-auth-file \fIFILE\fR
 Authentication file (required). One token per line, or
 .I user:password
-lines.
+lines. Secrets may be stored literally or as
+.I sha256:<64-hex-digest>
+for token entries and
+.I user:sha256:<64-hex-digest>
+for password entries.
 .TP
 .B \-\-db-root \fIDIR\fR
-Required jail directory; all opened database paths must resolve under this
-directory.
+Required jail directory for legacy storage; all opened database paths must
+resolve under this directory.
+.TP
+.B \-\-storage \fIMODE\fR
+Storage backend:
+.B legacy
+(default) or
+.BR volume .
+.TP
+.B \-\-volume-root \fIDIR\fR
+Required when
+.B \-\-storage volume
+is selected. Volumes are resolved under this root.
+.TP
+.B \-\-role \fIROLE\fR
+Cluster role:
+.B primary
+(default) or
+.BR replica .
+.TP
+.B \-\-sync-replication
+For primary volume storage, wait for replica acknowledgement after commits
+before reporting success.
+.TP
+.B \-\-rep-listen \fIADDR:PORT\fR
+Replication listener address for a primary. Requires
+.BR \-\-rep-token .
+.TP
+.B \-\-rep-primary \fIHOST:PORT\fR
+Upstream primary replication endpoint for a replica role.
+.TP
+.B \-\-rep-token \fITOKEN\fR
+Shared replication authentication token. Required with
+.B \-\-rep-listen
+and for replica connections to an upstream primary.
 .TP
 .B \-\-pool-min \fIN\fR
 Minimum connections per pool (default 1).
 .TP
 .B \-\-pool-max \fIN\fR
 Maximum connections per pool (default 8).
+.TP
+.B \-\-max-clients \fIN\fR
+Maximum concurrent client sessions (default 256).
+.TP
+.B \-\-quiet
+Suppress audit logging.
 .TP
 .B \-\-insecure
 Disable TLS (development only). Clients must pass
@@ -68,6 +113,31 @@ capdb-server \\
   \-\-cert server.pem \-\-key server.key \\
   \-\-auth-file /etc/capdb/tokens.txt \\
   \-\-db-root /var/lib/capdb/databases
+.fi
+.sp
+Volume primary with replication listener:
+.sp
+.nf
+capdb-server \\
+  \-\-storage volume \\
+  \-\-volume-root /var/lib/capdb/volumes \\
+  \-\-auth-file /etc/capdb/tokens.txt \\
+  \-\-cert server.pem \-\-key server.key \\
+  \-\-rep-listen 0.0.0.0:5433 \\
+  \-\-rep-token SECRET
+.fi
+.sp
+Volume replica:
+.sp
+.nf
+capdb-server \\
+  \-\-storage volume \\
+  \-\-volume-root /var/lib/capdb/replica \\
+  \-\-role replica \\
+  \-\-rep-primary primary.example:5433 \\
+  \-\-rep-token SECRET \\
+  \-\-auth-file /etc/capdb/tokens.txt \\
+  \-\-cert server.pem \-\-key server.key
 .fi
 .sp
 Development (no TLS):

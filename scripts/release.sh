@@ -6,11 +6,15 @@
 #   - capdb-<ver>-src.tar.gz           source tarball
 #   - capdb-amalgamation-<ver>.tar.gz  single-file amalgamation + headers
 #
-# Usage: scripts/release.sh [build-dir]
+# Usage: scripts/release.sh [build-dir] [--skip-tests]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="${1:-$ROOT/build}"
+SKIP_TESTS=0
+if [ "${2:-}" = "--skip-tests" ]; then
+  SKIP_TESTS=1
+fi
 DIST="$ROOT/dist"
 VERSION="$(tr -d ' \t\n\r' < "$ROOT/VERSION")"
 GEN="$BUILD/generated"
@@ -22,8 +26,12 @@ cmake -B "$BUILD" -S "$ROOT" \
   -DCAPDB_ENABLE_NETWORK=ON
 cmake --build "$BUILD" -j"$(nproc 2>/dev/null || echo 4)"
 
-echo ">> Running tests"
-( cd "$BUILD" && ctest --output-on-failure )
+if [ "$SKIP_TESTS" -eq 0 ]; then
+  echo ">> Running tests"
+  ( cd "$BUILD" && ctest --output-on-failure )
+else
+  echo ">> Skipping recursive ctest run for artifact smoke"
+fi
 
 echo ">> Codegen parity"
 python3 "$ROOT/tools/py/tests/test_codegen_parity.py"
@@ -47,6 +55,25 @@ cp "$ROOT/capdb/pool/capdb_pool.h" "$STAGE/$AMALG/" 2>/dev/null || true
 cp "$ROOT/LICENSE" "$ROOT/LICENSE.md" "$ROOT/README.md" "$STAGE/$AMALG/"
 tar -czf "$DIST/$AMALG.tar.gz" -C "$STAGE" "$AMALG"
 rm -rf "$STAGE"
+
+# Language binding source bundle.
+BINDINGS="capdb-bindings-$VERSION"
+STAGE="$(mktemp -d)"
+mkdir -p "$STAGE/$BINDINGS"
+cp -R "$ROOT/bindings/go" "$STAGE/$BINDINGS/"
+cp -R "$ROOT/bindings/rust" "$STAGE/$BINDINGS/"
+cp -R "$ROOT/bindings/python" "$STAGE/$BINDINGS/"
+cp -R "$ROOT/bindings/java" "$STAGE/$BINDINGS/"
+find "$STAGE/$BINDINGS" -type d \( -name target -o -name __pycache__ \) -prune -exec rm -rf {} +
+find "$STAGE/$BINDINGS" -name '*.pyc' -delete
+cp "$ROOT/capdb-go-build-env.sh" "$ROOT/capdb-rust-build-env.sh" \
+   "$ROOT/capdb-python-build-env.sh" "$STAGE/$BINDINGS/"
+cp "$ROOT/LICENSE" "$ROOT/LICENSE.md" "$ROOT/README.md" "$STAGE/$BINDINGS/"
+tar -czf "$DIST/$BINDINGS.tar.gz" -C "$STAGE" "$BINDINGS"
+rm -rf "$STAGE"
+
+echo ">> Auditing artifacts"
+"$ROOT/tools/check-release-artifacts.sh" "$DIST" "$ROOT/VERSION"
 
 echo ">> Artifacts:"
 ls -la "$DIST"

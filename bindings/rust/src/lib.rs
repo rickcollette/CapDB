@@ -40,10 +40,27 @@ struct capdb_net_stmt(c_void);
 
 #[link(name = "capdb")]
 extern "C" {
-    fn capdb_open_v2(filename: *const c_char, pp_db: *mut *mut capdb, flags: c_int, vfs: *const c_char) -> c_int;
+    fn capdb_open_v2(
+        filename: *const c_char,
+        pp_db: *mut *mut capdb,
+        flags: c_int,
+        vfs: *const c_char,
+    ) -> c_int;
     fn capdb_close(db: *mut capdb) -> c_int;
-    fn capdb_exec(db: *mut capdb, sql: *const c_char, cb: *mut c_void, arg: *mut c_void, errmsg: *mut *mut c_char) -> c_int;
-    fn capdb_prepare_v2(db: *mut capdb, sql: *const c_char, n: c_int, pp_stmt: *mut *mut capdb_stmt, tail: *mut *const c_char) -> c_int;
+    fn capdb_exec(
+        db: *mut capdb,
+        sql: *const c_char,
+        cb: *mut c_void,
+        arg: *mut c_void,
+        errmsg: *mut *mut c_char,
+    ) -> c_int;
+    fn capdb_prepare_v2(
+        db: *mut capdb,
+        sql: *const c_char,
+        n: c_int,
+        pp_stmt: *mut *mut capdb_stmt,
+        tail: *mut *const c_char,
+    ) -> c_int;
     fn capdb_step(stmt: *mut capdb_stmt) -> c_int;
     fn capdb_finalize(stmt: *mut capdb_stmt) -> c_int;
     fn capdb_column_count(stmt: *mut capdb_stmt) -> c_int;
@@ -60,8 +77,17 @@ extern "C" {
 
     fn capdb_net_connect(uri: *const c_char, pp: *mut *mut capdb_conn) -> c_int;
     fn capdb_net_close(conn: *mut capdb_conn) -> c_int;
-    fn capdb_net_exec(conn: *mut capdb_conn, sql: *const c_char, cb: *mut c_void, arg: *mut c_void) -> c_int;
-    fn capdb_net_prepare(conn: *mut capdb_conn, sql: *const c_char, pp: *mut *mut capdb_net_stmt) -> c_int;
+    fn capdb_net_exec(
+        conn: *mut capdb_conn,
+        sql: *const c_char,
+        cb: *mut c_void,
+        arg: *mut c_void,
+    ) -> c_int;
+    fn capdb_net_prepare(
+        conn: *mut capdb_conn,
+        sql: *const c_char,
+        pp: *mut *mut capdb_net_stmt,
+    ) -> c_int;
     fn capdb_net_step(stmt: *mut capdb_net_stmt) -> c_int;
     fn capdb_net_finalize(stmt: *mut capdb_net_stmt) -> c_int;
     fn capdb_net_column_count(stmt: *mut capdb_net_stmt) -> c_int;
@@ -122,7 +148,10 @@ impl CapDbConnection {
                     }
                     return Err(CapDbError::Connection(format!("{msg} (rc={rc})")));
                 }
-                Ok(Self { mode, handle: Handle::Embedded(db) })
+                Ok(Self {
+                    mode,
+                    handle: Handle::Embedded(db),
+                })
             }
             CapDbMode::Network { uri } => {
                 let curi = CString::new(uri.as_str())?;
@@ -135,7 +164,10 @@ impl CapDbConnection {
                     }
                     return Err(CapDbError::Connection(format!("{msg} (rc={rc})")));
                 }
-                Ok(Self { mode, handle: Handle::Network(conn) })
+                Ok(Self {
+                    mode,
+                    handle: Handle::Network(conn),
+                })
             }
         }
     }
@@ -144,9 +176,20 @@ impl CapDbConnection {
         let csql = CString::new(sql)?;
         match self.handle {
             Handle::Embedded(db) => {
-                let rc = unsafe { capdb_exec(db, csql.as_ptr(), ptr::null_mut(), ptr::null_mut(), ptr::null_mut()) };
+                let rc = unsafe {
+                    capdb_exec(
+                        db,
+                        csql.as_ptr(),
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                    )
+                };
                 if rc != CAPDB_OK {
-                    return Err(CapDbError::Query(format!("{} (rc={rc})", embedded_errmsg(db))));
+                    return Err(CapDbError::Query(format!(
+                        "{} (rc={rc})",
+                        embedded_errmsg(db)
+                    )));
                 }
                 Ok(ExecuteResult {
                     rows_affected: unsafe { capdb_changes(db) as i64 },
@@ -154,9 +197,14 @@ impl CapDbConnection {
                 })
             }
             Handle::Network(conn) => {
-                let rc = unsafe { capdb_net_exec(conn, csql.as_ptr(), ptr::null_mut(), ptr::null_mut()) };
+                let rc = unsafe {
+                    capdb_net_exec(conn, csql.as_ptr(), ptr::null_mut(), ptr::null_mut())
+                };
                 if rc != CAPDB_NET_OK {
-                    return Err(CapDbError::Query(format!("{} (rc={rc})", network_errmsg(conn))));
+                    return Err(CapDbError::Query(format!(
+                        "{} (rc={rc})",
+                        network_errmsg(conn)
+                    )));
                 }
                 Ok(ExecuteResult {
                     rows_affected: unsafe { capdb_net_changes(conn) as i64 },
@@ -203,7 +251,10 @@ fn query_embedded_json(db: *mut capdb, sql: *const c_char) -> Result<Value> {
     let mut stmt: *mut capdb_stmt = ptr::null_mut();
     let rc = unsafe { capdb_prepare_v2(db, sql, -1, &mut stmt, ptr::null_mut()) };
     if rc != CAPDB_OK {
-        return Err(CapDbError::Query(format!("{} (rc={rc})", embedded_errmsg(db))));
+        return Err(CapDbError::Query(format!(
+            "{} (rc={rc})",
+            embedded_errmsg(db)
+        )));
     }
     let result = (|| {
         let ncol = unsafe { capdb_column_count(stmt) };
@@ -229,7 +280,12 @@ fn query_embedded_json(db: *mut capdb, sql: *const c_char) -> Result<Value> {
                     rows.push(Value::Object(row));
                 }
                 CAPDB_DONE => break,
-                _ => return Err(CapDbError::Query(format!("{} (rc={rc})", embedded_errmsg(db)))),
+                _ => {
+                    return Err(CapDbError::Query(format!(
+                        "{} (rc={rc})",
+                        embedded_errmsg(db)
+                    )))
+                }
             }
         }
         Ok(Value::Array(rows))
@@ -242,7 +298,10 @@ fn query_network_json(conn: *mut capdb_conn, sql: *const c_char) -> Result<Value
     let mut stmt: *mut capdb_net_stmt = ptr::null_mut();
     let rc = unsafe { capdb_net_prepare(conn, sql, &mut stmt) };
     if rc != CAPDB_NET_OK || stmt.is_null() {
-        return Err(CapDbError::Query(format!("{} (rc={rc})", network_errmsg(conn))));
+        return Err(CapDbError::Query(format!(
+            "{} (rc={rc})",
+            network_errmsg(conn)
+        )));
     }
     let result = (|| {
         let ncol = unsafe { capdb_net_column_count(stmt) };
@@ -258,7 +317,12 @@ fn query_network_json(conn: *mut capdb_conn, sql: *const c_char) -> Result<Value
                     rows.push(Value::Object(row));
                 }
                 CAPDB_DONE => break,
-                _ => return Err(CapDbError::Query(format!("{} (rc={rc})", network_errmsg(conn)))),
+                _ => {
+                    return Err(CapDbError::Query(format!(
+                        "{} (rc={rc})",
+                        network_errmsg(conn)
+                    )))
+                }
             }
         }
         Ok(Value::Array(rows))
@@ -281,7 +345,9 @@ fn embedded_value(stmt: *mut capdb_stmt, i: c_int) -> Value {
                 Value::from(hex(slice_from_ptr(p as *const u8, n)))
             }
         }
-        CAPDB_TEXT | _ => text_value(unsafe { capdb_column_text(stmt, i) }, unsafe { capdb_column_bytes(stmt, i) }),
+        CAPDB_TEXT | _ => text_value(unsafe { capdb_column_text(stmt, i) }, unsafe {
+            capdb_column_bytes(stmt, i)
+        }),
     }
 }
 
@@ -299,7 +365,9 @@ fn network_value(stmt: *mut capdb_net_stmt, i: c_int) -> Value {
                 Value::from(hex(slice_from_ptr(p as *const u8, n)))
             }
         }
-        CAPDB_VALUE_TEXT | _ => text_value(unsafe { capdb_net_column_text(stmt, i) }, unsafe { capdb_net_column_bytes(stmt, i) }),
+        CAPDB_VALUE_TEXT | _ => text_value(unsafe { capdb_net_column_text(stmt, i) }, unsafe {
+            capdb_net_column_bytes(stmt, i)
+        }),
     }
 }
 
@@ -363,7 +431,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.capdb");
         let conn = CapDbConnection::open(CapDbMode::Embedded { path }).unwrap();
-        conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, name TEXT)").unwrap();
+        conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, name TEXT)")
+            .unwrap();
         let res = conn.execute("INSERT INTO t(name) VALUES('alice')").unwrap();
         assert_eq!(res.last_insert_rowid, 1);
         let rows = conn.query_json("SELECT id, name FROM t").unwrap();
@@ -422,7 +491,8 @@ mod tests {
 
         let uri = format!("capdb://127.0.0.1:{port}/test.capdb?token=test-token&insecure=1");
         let conn = CapDbConnection::open(CapDbMode::Network { uri }).unwrap();
-        conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, name TEXT)").unwrap();
+        conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, name TEXT)")
+            .unwrap();
         conn.execute("INSERT INTO t(name) VALUES('alice')").unwrap();
         let rows = conn.query_json("SELECT id, name FROM t").unwrap();
         assert_eq!(rows[0]["col0"], 1);

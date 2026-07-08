@@ -188,6 +188,16 @@ static int mVfsOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
         zPath = zDup;
         if( strncmp(zPath, "file:", 5)==0 ) zPath += 5;
       }
+    }else{
+      q = strchr(zPath, '?');
+      if( q ){
+        zDup = strdup(zPath);
+        if( zDup ){
+          char *cut = strchr(zDup, '?');
+          if( cut ) *cut = 0;
+          zPath = zDup;
+        }
+      }
     }
   }
   if( zUri==0 ) zUri = pV->zDefaultUri;
@@ -229,8 +239,62 @@ static int mVfsOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
 }
 
 static int mVfsDelete(capdb_vfs *NotUsed, const char *zName, int syncDir){
-  (void)NotUsed; (void)zName; (void)syncDir;
-  return CAPDB_IOERR_DELETE;
+  CapdbRemoteVfs *pV = (CapdbRemoteVfs*)NotUsed;
+  const char *zUri = 0;
+  const char *zPath = zName;
+  char *zDup = 0;
+  capdb_conn *pConn = 0;
+  int bTempConn = 0;
+  int rc;
+  if( pV==0 || zName==0 ) return CAPDB_IOERR_DELETE;
+  if( strncmp(zName, "file:", 5)==0 ) zPath = zName + 5;
+  {
+    const char *q = strstr(zName, "?capdb=");
+    if( q ){
+      zUri = q + 9;
+      zDup = strdup(zName);
+      if( zDup ){
+        char *cut = strstr(zDup, "?capdb=");
+        if( cut ) *cut = 0;
+        zPath = zDup;
+        if( strncmp(zPath, "file:", 5)==0 ) zPath += 5;
+      }
+    }else{
+      q = strchr(zPath, '?');
+      if( q ){
+        zDup = strdup(zPath);
+        if( zDup ){
+          char *cut = strchr(zDup, '?');
+          if( cut ) *cut = 0;
+          zPath = zDup;
+        }
+      }
+    }
+  }
+  if( zUri==0 ) zUri = pV->zDefaultUri;
+  if( zUri==0 ){
+    free(zDup);
+    return CAPDB_IOERR_DELETE;
+  }
+  vfsConnLock();
+  if( pV->pConn ){
+    pConn = pV->pConn;
+  }
+  vfsConnUnlock();
+  if( pConn==0 ){
+    rc = capdb_net_connect(zUri, &pConn);
+    if( rc!=CAPDB_NET_OK ){
+      free(zDup);
+      return CAPDB_IOERR_DELETE;
+    }
+    bTempConn = 1;
+  }
+  vfsConnLock();
+  rc = capdb_net_vfs_delete(pConn, zPath, syncDir);
+  vfsConnUnlock();
+  if( bTempConn ) capdb_net_close(pConn);
+  free(zDup);
+  return rc==CAPDB_NET_OK ? CAPDB_OK : CAPDB_IOERR_DELETE;
 }
 
 static int mVfsAccess(capdb_vfs *NotUsed, const char *zName, int flags,

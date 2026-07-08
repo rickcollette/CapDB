@@ -59,7 +59,7 @@ C API in `capdb_pool.h`:
 capdb_pool *pool;
 capdb *db;
 capdb_pool_open("/path/app.db", &cfg, &pool);
-capdb_pool_acquire(pool, CAPDB_POOL_RW, &db);
+capdb_pool_acquire(pool, CAPDB_POOL_WRITE, 30000, &db);
 /* ... use db ... */
 capdb_exec(db, "COMMIT", 0, 0, 0);
 capdb_pool_release(pool, db);

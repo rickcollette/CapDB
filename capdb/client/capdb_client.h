@@ -60,6 +60,7 @@ int capdb_net_vfs_sync(capdb_conn *p, int fid, int flags);
 int capdb_net_vfs_size(capdb_conn *p, int fid, long long *pSize);
 int capdb_net_vfs_lock(capdb_conn *p, int fid, int eLock);
 int capdb_net_vfs_check_reserved(capdb_conn *p, int fid, int *pReserved);
+int capdb_net_vfs_delete(capdb_conn *p, const char *zPath, int syncDir);
 
 int capdb_net_vfs_register(const char *zDefaultUri, int makeDefault);
 

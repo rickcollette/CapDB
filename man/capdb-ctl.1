@@ -1,0 +1,82 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH CAPDB-CTL 1 "July 2026" "CapDB 3.6.1" "User Commands"
+.SH NAME
+capdb-ctl \- CapDB volume and cluster administration
+.SH SYNOPSIS
+.B capdb-ctl
+.I command
+[\fIoptions\fR]
+.SH DESCRIPTION
+.B capdb-ctl
+performs local administration against CapDB volume directories. It does not
+contact a running server; commands operate on the
+.B --volume
+path directly.
+.SH COMMANDS
+.TP
+.B status --volume \fIPATH\fR [--json]
+Print local volume status including role, generation, LSN, applied LSN, and
+lag bytes.
+.TP
+.B prepare --volume \fIPATH\fR
+Create or initialize a local CapDB volume directory.
+.TP
+.B health --volume \fIPATH\fR [--json]
+Check local volume readiness. Returns zero when the volume can be read and
+non-zero when it cannot.
+.TP
+.B metrics --volume \fIPATH\fR
+Print Prometheus-style local volume metrics for LSN, applied LSN, lag bytes,
+and generation.
+.TP
+.B promote --volume \fIPATH\fR [--wait \fIMS\fR]
+Replay available replication segments, optionally wait for applied LSN to catch
+up, and increment the volume generation. External fencing is required before
+promoting a replica.
+.TP
+.B demote --volume \fIPATH\fR
+Mark the local volume role as demoted. This is a local state change; external
+traffic fencing is still required.
+.TP
+.B backup --volume \fIPATH\fR --out \fIFILE.db\fR
+Export the volume database to a standalone database file.
+.TP
+.B export --volume \fIPATH\fR --out \fIFILE.db\fR
+Alias for
+.BR backup .
+.SH OPTIONS
+.TP
+.B --volume \fIPATH\fR
+Volume directory to inspect or administer.
+.TP
+.B --out \fIFILE.db\fR
+Output database file for
+.B backup
+or
+.BR export .
+.TP
+.B --wait \fIMS\fR
+Maximum milliseconds for
+.B promote
+to wait for replay/applied LSN catch-up before returning busy.
+.TP
+.B --json
+Emit machine-readable JSON for
+.B status
+or
+.BR health .
+.SH EXAMPLES
+.nf
+capdb-ctl prepare --volume /var/lib/capdb/volumes/app
+capdb-ctl status --volume /var/lib/capdb/volumes/app --json
+capdb-ctl health --volume /var/lib/capdb/volumes/app --json
+capdb-ctl metrics --volume /var/lib/capdb/volumes/app
+capdb-ctl backup --volume /var/lib/capdb/volumes/app --out /backup/app.db
+capdb-ctl promote --volume /var/lib/capdb/volumes/app --wait 30000
+capdb-ctl demote --volume /var/lib/capdb/volumes/app
+.fi
+.SH SEE ALSO
+.BR capdb-server (1),
+.BR capdb (1)
+.SH AUTHOR
+CapDB project.

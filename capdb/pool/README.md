@@ -20,7 +20,7 @@ The pool is compiled into the `capdb` amalgamation when enabled. Header:
 - `capdb_pool_acquire()` / `capdb_pool_release()`
 - `capdb_pool_stats()`
 
-Checkout modes: `CAPDB_POOL_READ`, `CAPDB_POOL_WRITE`, `CAPDB_POOL_RW`.
+Checkout modes: `CAPDB_POOL_READ` and `CAPDB_POOL_WRITE`.
 
 ## Usage notes
 

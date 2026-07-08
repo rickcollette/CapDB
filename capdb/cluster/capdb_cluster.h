@@ -22,6 +22,7 @@ typedef struct capdb_cluster_status {
 
 int  capdb_cluster_role_name(int role, char *zBuf, int nBuf);
 int  capdb_cluster_promote(const char *zVolumePath, int waitMs);
+int  capdb_cluster_demote(const char *zVolumePath);
 int  capdb_cluster_status_fill(const char *zVolumePath, capdb_cluster_status *p);
 
 #ifdef __cplusplus

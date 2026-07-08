@@ -39,13 +39,24 @@ cmake --install build --prefix /usr/local
 |------|----------|
 | `bin/capdb` | CLI |
 | `bin/capdb-server` | Server (if network enabled) |
+| `bin/capdb-ctl` | Volume/admin CLI (if store enabled) |
 | `include/capdb.h`, `capdbext.h` | Core headers (from `build/generated/`) |
 | `include/capdb_pool.h` | Pool header (if enabled) |
 | `include/capdb_client.h` | Client header (if enabled) |
+| `include/capdb/store/` | Store public headers (if store enabled) |
+| `include/capdb/cluster/` | Cluster public header (if store enabled) |
+| `include/capdb/replication/` | Replication public header (if replication enabled) |
 | `lib/libcapdb.a` | Static library |
 | `lib/libcapdb.so` | Shared library for embedded and network bindings |
+| `lib/pkgconfig/capdb.pc` | Embedded library pkg-config metadata |
+| `lib/pkgconfig/libcapdb_client.pc` | Network client pkg-config metadata (if network enabled) |
+| `lib/libcapdb_jni.so` | Experimental JNI network shim (if JNI headers are available) |
+| `share/capdb/java/` | Minimal Java JNI wrapper source (if JNI headers are available) |
 | `src/capdb.c` | Single-file amalgamation for vendoring |
 | `share/man/man1/capdb.1` | CLI man page |
+| `share/man/man1/capdb-server.1` | Server man page (if network enabled) |
+| `share/man/man1/capdb-ctl.1` | Admin CLI man page (if store enabled) |
+| `share/capdb/systemd/capdb.service` | Example systemd service template |
 
 View man pages before install:
 
@@ -145,16 +156,22 @@ cmake --build build --target clean-all
 |--------|---------|-------------|
 | `CAPDB_ENABLE_POOL` | ON | Connection pool extension |
 | `CAPDB_ENABLE_NETWORK` | ON | TLS network layer (requires pool, OpenSSL) |
+| `CAPDB_ENABLE_STORE` | ON | Volume store and `capdbstorevfs` |
+| `CAPDB_ENABLE_REPLICATION` | ON | WAL replication (requires store) |
 | `CAPDB_ENABLE_FTS5` | ON | FTS5 full-text search |
 | `CAPDB_ENABLE_MATH_FUNCTIONS` | ON | SQL math functions |
 | `CAPDB_ENABLE_PERCENTILE` | ON | Percentile extension |
 | `CAPDB_HAVE_ZLIB` | ON | Link zlib |
 | `CAPDB_BUILD_TESTS` | ON | Build capsuite, capdbtest, threadtest_pool |
+| `CAPDB_WARNINGS` | ON | Enable warnings for CapDB-owned targets |
+| `CAPDB_WERROR` | OFF | Treat warnings as errors |
+| `CAPDB_ENABLE_JNI_NETWORK` | ON | Build the experimental remote JNI shim when JNI headers are available |
 
 ## Extensions
 
 - Network: [../capdb/README.md](../capdb/README.md)
 - Pool: [../capdb/pool/README.md](../capdb/pool/README.md)
+- Store/replication/admin: [../capdb/README.md](../capdb/README.md)
 
 ## Legacy autoconf
 

@@ -47,6 +47,7 @@ by `scripts/release.sh`.
 | `capdb-<ver>-<os>-<arch>.tar.gz` | binary dist: `capdb` CLI, `capdb-server`, `libcapdb.a`, `libcapdb_client.a`, headers, man pages |
 | `capdb-<ver>-src.tar.gz` | full source tree (CMake) |
 | `capdb-amalgamation-<ver>.tar.gz` | single-file `capdb.c` + public headers (`capdb.h`, `capdbext.h`, `capdb_client.h`, `capdb_pool.h`) + license/readme |
+| `capdb-bindings-<ver>.tar.gz` | Go, Rust, Python, and Java binding source trees plus helper scripts |
 
 ## CI
 

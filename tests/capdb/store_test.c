@@ -5,6 +5,7 @@
 
 #include "capdb.h"
 #include "capdb/store/capdb_store.h"
+#include "capdb/cluster/capdb_cluster.h"
 #if defined(CAPDB_ENABLE_POOL)
 #include "capdb/pool/capdb_pool.h"
 #endif
@@ -12,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 static int test_volume_crud(const char *zRoot){
   char zVol[512];
@@ -102,6 +104,44 @@ static int test_direct_volume_sql(const char *zRoot){
   return 0;
 }
 
+static int test_cluster_role_state(const char *zRoot){
+  char zVol[512];
+  capdb_cluster_status st;
+  char zRole[32];
+  snprintf(zVol, sizeof(zVol), "%s/cluster", zRoot);
+  if( capdb_volume_prepare(zVol, CAPDB_VOLUME_OPEN_CREATE)!=CAPDB_OK ) return 1;
+  if( capdb_cluster_status_fill(zVol, &st)!=CAPDB_OK ) return 1;
+  if( st.role!=CAPDB_CLUSTER_ROLE_PRIMARY ) return 1;
+  if( capdb_cluster_demote(zVol)!=CAPDB_OK ) return 1;
+  if( capdb_cluster_status_fill(zVol, &st)!=CAPDB_OK ) return 1;
+  if( st.role!=CAPDB_CLUSTER_ROLE_DEMOTED ) return 1;
+  if( capdb_cluster_role_name(st.role, zRole, sizeof(zRole))!=CAPDB_OK ) return 1;
+  if( strcmp(zRole, "demoted")!=0 ) return 1;
+  if( capdb_cluster_promote(zVol, 100)!=CAPDB_OK ) return 1;
+  if( capdb_cluster_status_fill(zVol, &st)!=CAPDB_OK ) return 1;
+  if( st.role!=CAPDB_CLUSTER_ROLE_PRIMARY ) return 1;
+  return 0;
+}
+
+static int test_snapshot_path(const char *zRoot){
+  char zVol[512];
+  char zSnap[1024];
+  char zMain[1100];
+  capdb_volume *p = 0;
+  struct stat st;
+  snprintf(zVol, sizeof(zVol), "%s/snapvol", zRoot);
+  if( capdb_volume_open(zVol, CAPDB_VOLUME_OPEN_CREATE, &p)!=CAPDB_OK ) return 1;
+  if( capdb_volume_snapshot(p, 123, zSnap, sizeof(zSnap))!=CAPDB_OK ){
+    capdb_volume_close(p);
+    return 1;
+  }
+  capdb_volume_close(p);
+  snprintf(zMain, sizeof(zMain), "%s/main.db", zSnap);
+  if( strstr(zSnap, "/snapshots/snap_123")==0 ) return 1;
+  if( stat(zMain, &st)!=0 ) return 1;
+  return 0;
+}
+
 int main(void){
   char zRoot[] = "/tmp/capdb_store_test_XXXXXX";
   if( mkdtemp(zRoot)==0 ) return 1;
@@ -115,6 +155,14 @@ int main(void){
   }
   if( test_direct_volume_sql(zRoot) ){
     fprintf(stderr, "store_test: direct volume sql failed\n");
+    return 1;
+  }
+  if( test_cluster_role_state(zRoot) ){
+    fprintf(stderr, "store_test: cluster role state failed\n");
+    return 1;
+  }
+  if( test_snapshot_path(zRoot) ){
+    fprintf(stderr, "store_test: snapshot path failed\n");
     return 1;
   }
   fprintf(stderr, "store_test: ok\n");

@@ -38,6 +38,8 @@ unsigned long long capdb_volume_lsn(capdb_volume *p);
 unsigned long long capdb_volume_applied_lsn(capdb_volume *p);
 int  capdb_volume_generation(capdb_volume *p);
 int  capdb_volume_set_generation(capdb_volume *p, int gen);
+int  capdb_volume_role(capdb_volume *p);
+int  capdb_volume_set_role(capdb_volume *p, int role);
 
 const char *capdb_volume_path(capdb_volume *p);
 const char *capdb_volume_main_db_path(capdb_volume *p);

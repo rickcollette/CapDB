@@ -31,8 +31,12 @@ if [ ! -f "$CAPDB_BUILD/libcapdb.a" ] && [ ! -f "$CAPDB_BUILD/libcapdb_store.a" 
     exit 1
 fi
 
-cat <<EOF
 export CAPDB_INCLUDE_DIR="$CAPDB_CLIENT:$CAPDB_GENERATED"
 export CAPDB_LIB_DIR="$CAPDB_BUILD"
 export CAPDB_RUSTFLAGS="-lcapdb_client -lcapdb_store -lssl -lcrypto -lpthread -lm"
+
+cat <<EOF
+export CAPDB_INCLUDE_DIR="$CAPDB_INCLUDE_DIR"
+export CAPDB_LIB_DIR="$CAPDB_LIB_DIR"
+export CAPDB_RUSTFLAGS="$CAPDB_RUSTFLAGS"
 EOF

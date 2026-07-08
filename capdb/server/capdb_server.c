@@ -749,6 +749,19 @@ static void pathRegistryVfsClose(capdb_server *pSrv, const char *zPath){
   pthread_mutex_unlock(&pSrv->pathMutex);
 }
 
+static int pathRegistryCanDelete(capdb_server *pSrv, const char *zPath){
+  PathEntry *e;
+  int busy = 0;
+  if( zPath==0 ) return CAPDB_MISUSE;
+  pthread_mutex_lock(&pSrv->pathMutex);
+  e = pathEntryFind(pSrv, zPath, 0);
+  if( e && (e->nPoolPin>0 || e->nPoolRefs>0 || e->nVfsOpen>0) ){
+    busy = 1;
+  }
+  pthread_mutex_unlock(&pSrv->pathMutex);
+  return busy ? CAPDB_BUSY : CAPDB_OK;
+}
+
 static int pathRegistrySetLock(capdb_server *pSrv, const char *zPath, int eNew){
   PathEntry *e;
   int eOld;
@@ -1678,6 +1691,51 @@ static int handleVfsCheckReserved(Session *p, capdb_reader *r){
   return 0;
 }
 
+static int handleVfsDelete(Session *p, capdb_reader *r){
+  char *zPath = 0;
+  char *zAllowed = 0;
+  int syncDir = 0;
+  int rc;
+  if( !sessionRequireOpen(p) ) return 0;
+  if( capdb_reader_str(r, &zPath) ) return sessionParseFail(p);
+  if( capdb_reader_i32(r, &syncDir) ){
+    free(zPath);
+    return sessionParseFail(p);
+  }
+  if( pathIsAllowed(p->pSrv, zPath, &zAllowed) ){
+    sendError(p, CAPDB_PERM, "path not allowed");
+    free(zPath);
+    return 0;
+  }
+  free(zPath);
+  rc = pathRegistryCanDelete(p->pSrv, zAllowed);
+  if( rc!=CAPDB_OK ){
+    free(zAllowed);
+    sendError(p, rc, rc==CAPDB_BUSY ? "path in use" : "delete denied");
+    return 0;
+  }
+  if( unlink(zAllowed)!=0 && errno!=ENOENT ){
+    sendError(p, CAPDB_IOERR_DELETE, strerror(errno));
+    free(zAllowed);
+    return 0;
+  }
+  if( syncDir ){
+    char *zSlash = strrchr(zAllowed, '/');
+    if( zSlash ){
+      int dfd;
+      *zSlash = 0;
+      dfd = open(zAllowed[0] ? zAllowed : "/", O_RDONLY);
+      if( dfd>=0 ){
+        fsync(dfd);
+        close(dfd);
+      }
+    }
+  }
+  free(zAllowed);
+  vfsSendPong(p);
+  return 0;
+}
+
 static void sessionResetDbState(Session *p){
   VfsSlot *v, *vNext;
   if( p==0 ) return;
@@ -1894,6 +1952,9 @@ static int sessionHandle(Session *p){
       break;
     case CAPDB_MSG_VFS_CHECK_RESERVED:
       handleVfsCheckReserved(p, &r);
+      break;
+    case CAPDB_MSG_VFS_DELETE:
+      handleVfsDelete(p, &r);
       break;
     default:
       sendError(p, CAPDB_MISUSE, "unknown message type");

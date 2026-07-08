@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libssl-dev zlib1g-dev python3 default-jdk-headless
+          sudo apt-get install -y cmake build-essential libssl-dev zlib1g-dev python3 default-jdk-headless pkg-config
 
       - name: Configure
         run: |
@@ -33,5 +33,30 @@ jobs:
       - name: Test
         run: cd build && ctest --output-on-failure
 
+      - name: Install smoke
+        run: tools/capdb-install-smoke.sh build "$PWD/install-smoke"
+
       - name: Codegen parity
         run: python3 tools/py/tests/test_codegen_parity.py
+
+      - name: Public API surface check
+        run: ./tools/check-api-surface.sh
+
+      - name: Go binding tests
+        run: |
+          eval "$(./capdb-go-build-env.sh "$PWD/build")"
+          cd bindings/go
+          go test -tags capdb ./capdb
+
+      - name: Rust binding tests
+        run: |
+          cd bindings/rust
+          CAPDB_LIB_DIR="$GITHUB_WORKSPACE/build" \
+          CAPDB_SERVER="$GITHUB_WORKSPACE/build/capdb-server" \
+          cargo test
+
+      - name: Python binding smoke
+        run: |
+          CAPDB_LIBRARY="$PWD/build/libcapdb.so" \
+          LD_LIBRARY_PATH="$PWD/build:${LD_LIBRARY_PATH:-}" \
+          python3 -c 'import capdb; conn=capdb.connect(":memory:"); cur=conn.cursor(); cur.execute("CREATE TABLE t(id INTEGER, name TEXT)"); cur.execute("INSERT INTO t VALUES(1, '"'"'alice'"'"')"); cur.execute("SELECT id, name FROM t"); assert cur.fetchall()==[(1, "alice")]; conn.close()'

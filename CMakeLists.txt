@@ -452,6 +452,7 @@ if(CAPDB_ENABLE_NETWORK)
     capdb/vfs/capdb_vfs.c
   )
   add_library(capdb_client STATIC ${CAPDB_CLIENT_SRCS})
+  set_target_properties(capdb_client PROPERTIES POSITION_INDEPENDENT_CODE ON)
   target_include_directories(capdb_client PUBLIC
     "${CAPDB_ROOT}"
     "${CAPDB_GEN_DIR}"
@@ -467,6 +468,7 @@ if(CAPDB_ENABLE_NETWORK)
 
   if(CAPDB_ENABLE_JNI_NETWORK)
     find_package(JNI QUIET)
+    find_package(Java COMPONENTS Development QUIET)
     if(NOT JNI_FOUND AND EXISTS "/usr/lib/jvm/default-java/include/jni.h")
       set(JNI_INCLUDE_DIRS
         "/usr/lib/jvm/default-java/include"
@@ -474,7 +476,8 @@ if(CAPDB_ENABLE_NETWORK)
       set(JNI_FOUND TRUE)
     endif()
     if(JNI_FOUND)
-      add_library(capdb_jni STATIC capdb/jni/capdb_jni.c)
+      add_library(capdb_jni SHARED capdb/jni/capdb_jni.c)
+      set_target_properties(capdb_jni PROPERTIES OUTPUT_NAME capdb_jni)
       target_include_directories(capdb_jni PRIVATE
         "${CAPDB_ROOT}/capdb/client"
         "${CAPDB_GEN_DIR}"
@@ -484,6 +487,27 @@ if(CAPDB_ENABLE_NETWORK)
       target_compile_definitions(capdb_jni PRIVATE ${CAPDB_COMPILE_DEFS})
       capdb_target_warnings(capdb_jni)
       target_link_libraries(capdb_jni PUBLIC capdb_client)
+      if(Java_JAVAC_EXECUTABLE)
+        add_test(NAME java_jni_wrapper_compile
+          COMMAND ${Java_JAVAC_EXECUTABLE}
+            -d "${CMAKE_CURRENT_BINARY_DIR}/java-classes"
+            "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/org/capdb/jni/wrapper1/Capdb.java")
+        add_test(NAME java_jni_runtime_load
+          COMMAND ${CMAKE_COMMAND} -E env
+            LD_LIBRARY_PATH=$<TARGET_FILE_DIR:capdb_jni>:$ENV{LD_LIBRARY_PATH}
+            ${Java_JAVAC_EXECUTABLE}
+              -d "${CMAKE_CURRENT_BINARY_DIR}/java-classes"
+              "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/org/capdb/jni/wrapper1/Capdb.java"
+              "${CMAKE_CURRENT_SOURCE_DIR}/tests/capdb/java/JniLoadSmoke.java")
+        add_test(NAME java_jni_runtime_load_run
+          COMMAND ${CMAKE_COMMAND} -E env
+            LD_LIBRARY_PATH=$<TARGET_FILE_DIR:capdb_jni>:$ENV{LD_LIBRARY_PATH}
+            ${Java_JAVA_EXECUTABLE}
+              -cp "${CMAKE_CURRENT_BINARY_DIR}/java-classes"
+              org.capdb.jni.wrapper1.JniLoadSmoke)
+        set_tests_properties(java_jni_runtime_load_run PROPERTIES
+          DEPENDS java_jni_runtime_load)
+      endif()
     else()
       message(STATUS "JNI headers not found; capdb_jni target skipped")
     endif()
@@ -627,6 +651,10 @@ if(CAPDB_BUILD_TESTS)
   endif()
 
   add_test(NAME capsuite COMMAND capsuite --filter pool)
+  if(CAPDB_ENABLE_FTS5 AND CAPDB_ENABLE_MATH_FUNCTIONS AND CAPDB_ENABLE_PERCENTILE)
+    add_test(NAME extension_smoke
+      COMMAND $<TARGET_FILE:capdb_cli> -batch :memory: ".read ${CMAKE_CURRENT_SOURCE_DIR}/tests/capdb/extension_smoke.sql")
+  endif()
   if(CAPDB_ENABLE_NETWORK)
     set(_capdb_test_env
       ${CMAKE_COMMAND} -E env
@@ -668,7 +696,7 @@ if(CAPDB_BUILD_TESTS)
       list(APPEND _capdb_net_filters capdb-25-rep-async)
     endif()
     if(CAPDB_ENABLE_STORE AND CAPDB_ENABLE_REPLICATION)
-      list(APPEND _capdb_net_filters capdb-26-volume-multi-write capdb-27-rep-sync)
+      list(APPEND _capdb_net_filters capdb-26-volume-multi-write capdb-27-rep-sync capdb-28-read-preference)
     endif()
     foreach(_f IN LISTS _capdb_net_filters)
       string(REPLACE "-" "_" _test ${_f})
@@ -676,6 +704,39 @@ if(CAPDB_BUILD_TESTS)
         COMMAND ${_capdb_test_env} $<TARGET_FILE:capsuite> --filter ${_f})
       set_tests_properties(capdb_net_${_test} PROPERTIES RUN_SERIAL TRUE TIMEOUT 120)
     endforeach()
+  endif()
+
+  add_test(NAME capdb_test_depth_smoke
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/capdb-test-depth-smoke.sh"
+      "$<TARGET_FILE:capdb_cli>"
+      "${CMAKE_CURRENT_SOURCE_DIR}")
+  set_tests_properties(capdb_test_depth_smoke PROPERTIES TIMEOUT 90)
+
+  add_test(NAME capdb_install_tree_smoke
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/capdb-install-smoke.sh"
+      "${CMAKE_BINARY_DIR}"
+      "${CMAKE_CURRENT_BINARY_DIR}/install-smoke-ctest")
+  set_tests_properties(capdb_install_tree_smoke PROPERTIES TIMEOUT 120)
+
+  add_test(NAME capdb_release_artifact_smoke
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/release.sh"
+      "${CMAKE_CURRENT_BINARY_DIR}/release-smoke"
+      --skip-tests)
+  set_tests_properties(capdb_release_artifact_smoke PROPERTIES TIMEOUT 240)
+
+  add_test(NAME capdb_upstream_sync_check
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/upstream-sync-check.sh"
+      "${CMAKE_BINARY_DIR}"
+      --quick)
+  set_tests_properties(capdb_upstream_sync_check PROPERTIES TIMEOUT 90)
+
+  if(CAPDB_ENABLE_STORE)
+    add_test(NAME capdb_ops_smoke
+      COMMAND ${CMAKE_COMMAND} -E env
+        CAPDB=$<TARGET_FILE:capdb_cli>
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/capdb-ops-smoke.sh"
+        "$<TARGET_FILE:capdb-ctl>")
+    set_tests_properties(capdb_ops_smoke PROPERTIES TIMEOUT 90)
   endif()
 endif()
 
@@ -693,20 +754,51 @@ install(FILES "${CAPDB_H}" core/capdbext.h DESTINATION include)
 if(CAPDB_ENABLE_NETWORK)
   install(TARGETS capdb-server RUNTIME DESTINATION bin)
   install(TARGETS capdb_client ARCHIVE DESTINATION lib)
+  if(TARGET capdb_jni)
+    install(TARGETS capdb_jni
+      LIBRARY DESTINATION lib
+      ARCHIVE DESTINATION lib
+      RUNTIME DESTINATION bin)
+    install(FILES bindings/java/org/capdb/jni/wrapper1/Capdb.java
+      DESTINATION share/capdb/java/org/capdb/jni/wrapper1)
+  endif()
   install(FILES capdb/client/capdb_client.h DESTINATION include)
 endif()
 if(CAPDB_ENABLE_POOL)
   install(FILES capdb/pool/capdb_pool.h DESTINATION include)
+endif()
+if(CAPDB_ENABLE_STORE)
+  install(TARGETS capdb-ctl RUNTIME DESTINATION bin)
+  install(FILES
+    capdb/store/capdb_store.h
+    capdb/store/capdb_store_format.h
+    DESTINATION include/capdb/store
+  )
+  install(FILES capdb/cluster/capdb_cluster.h
+    DESTINATION include/capdb/cluster
+  )
+  if(CAPDB_ENABLE_REPLICATION)
+    install(FILES capdb/replication/capdb_rep.h
+      DESTINATION include/capdb/replication
+    )
+  endif()
 endif()
 
 install(FILES man/capdb.1 DESTINATION share/man/man1)
 if(CAPDB_ENABLE_NETWORK)
   install(FILES man/capdb-server.1 DESTINATION share/man/man1)
 endif()
+if(CAPDB_ENABLE_STORE)
+  install(FILES man/capdb-ctl.1 DESTINATION share/man/man1)
+endif()
+install(FILES packaging/systemd/capdb.service DESTINATION share/capdb/systemd)
 
 install(FILES "${CAPDB_C}" DESTINATION src)
 
 # Install pkg-config file
+configure_file(packaging/capdb.pc.in capdb.pc @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/capdb.pc"
+  DESTINATION lib/pkgconfig)
 if(CAPDB_ENABLE_NETWORK)
   configure_file(libcapdb_client.pc.in libcapdb_client.pc @ONLY)
   install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libcapdb_client.pc"
@@ -734,7 +826,7 @@ set(CPACK_GENERATOR "TGZ")
 set(CPACK_SOURCE_GENERATOR "TGZ")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "capdb-${PROJECT_VERSION}-src")
 set(CPACK_SOURCE_IGNORE_FILES
-  "/build/;/dist/;/legacy/;/tests/archive/;/\\\\.git/;\\\\.o$;\\\\.a$"
+  "/build[^/]*/;/dist/;/legacy/;/tests/archive/;/\\\\.git/;\\\\.o$;\\\\.a$"
 )
 include(CPack)
 

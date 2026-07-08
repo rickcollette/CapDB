@@ -204,6 +204,14 @@ static int capdb_26_volume_multi_write(void){
 }
 
 #if defined(CAPDB_ENABLE_REPLICATION)
+static int capdb_rep_select_cb(void *pArg, int nCol, char **azCol, char **azRow){
+  int *pFound = (int*)pArg;
+  (void)nCol;
+  (void)azRow;
+  if( azCol && azCol[0] && atoi(azCol[0])==42 ) *pFound = 1;
+  return 0;
+}
+
 static int capdb_25_rep_async(void){
   CapdbTestServer primary;
   CapdbTestServer replica;
@@ -289,17 +297,133 @@ static int capdb_27_rep_sync(void){
   capsuite_capdb_server_stop(&primary);
   return 0;
 }
+
+static int capdb_28_read_preference(void){
+  CapdbTestServer primary;
+  CapdbTestServer replica;
+  char zPriUri[512];
+  char zReadUri[512];
+  char zRepPrimary[64];
+  capdb_conn *p = 0;
+  capdb_net_stmt *st = 0;
+  int found = 0;
+  int rc;
+
+  memset(&primary, 0, sizeof(primary));
+  primary.bVolume = 1;
+  primary.bRepListen = 1;
+  primary.bRepSync = 1;
+  if( capsuite_capdb_server_start(&primary, 0) ) CAPSUITE_FAIL("primary start");
+
+  snprintf(zRepPrimary, sizeof(zRepPrimary), "127.0.0.1:%d", primary.repPort);
+  memset(&replica, 0, sizeof(replica));
+  replica.bVolume = 1;
+  replica.bReplica = 1;
+  snprintf(replica.zRepPrimary, sizeof(replica.zRepPrimary), "%s", zRepPrimary);
+  if( capsuite_capdb_server_start(&replica, 0) ){
+    capsuite_capdb_server_stop(&primary);
+    CAPSUITE_FAIL("replica start");
+  }
+
+  snprintf(zPriUri, sizeof(zPriUri),
+    "capdb://127.0.0.1:%d/readpref.db?token=testtoken&insecure=1",
+    primary.port);
+  if( run_nettest("rep-insert", zPriUri) ){
+    capsuite_capdb_server_stop(&replica);
+    capsuite_capdb_server_stop(&primary);
+    CAPSUITE_FAIL("rep-insert");
+  }
+
+  snprintf(zReadUri, sizeof(zReadUri),
+    "capdb://127.0.0.1:%d/readpref.db?token=testtoken&insecure=1"
+    "&read_preference=replica&replicas=127.0.0.1:1,127.0.0.1:%d",
+    primary.port, replica.port);
+  if( capdb_net_connect(zReadUri, &p) ){
+    capsuite_capdb_server_stop(&replica);
+    capsuite_capdb_server_stop(&primary);
+    CAPSUITE_FAIL("read-pref connect");
+  }
+
+  capsuite_capdb_server_stop(&primary);
+
+  if( capdb_net_exec(p, "SELECT v FROM rep_t", capdb_rep_select_cb, &found)
+   || found==0 ){
+    capdb_net_close(p);
+    capsuite_capdb_server_stop(&replica);
+    CAPSUITE_FAIL("read-pref exec");
+  }
+
+  rc = capdb_net_prepare(p,
+    "WITH q AS (SELECT v FROM rep_t) SELECT v FROM q", &st);
+  if( rc!=CAPDB_NET_OK || st==0 ){
+    capdb_net_close(p);
+    capsuite_capdb_server_stop(&replica);
+    CAPSUITE_FAIL("read-pref prepare");
+  }
+  rc = capdb_net_step(st);
+  if( rc!=CAPDB_ROW || capdb_net_column_int64(st, 0)!=42 ){
+    capdb_net_finalize(st);
+    capdb_net_close(p);
+    capsuite_capdb_server_stop(&replica);
+    CAPSUITE_FAIL("read-pref step");
+  }
+  if( capdb_net_step(st)!=CAPDB_DONE ){
+    capdb_net_finalize(st);
+    capdb_net_close(p);
+    capsuite_capdb_server_stop(&replica);
+    CAPSUITE_FAIL("read-pref done");
+  }
+  capdb_net_finalize(st);
+  capdb_net_close(p);
+  capsuite_capdb_server_stop(&replica);
+  return 0;
+}
 #endif
 
 static int capdb_16_vfs_delete(void){
   CapdbTestServer srv;
   char zUri[256];
+  char zFile[512];
+  char zRemoteFile[640];
+  capdb *db = 0;
+  capdb_vfs *pVfs;
+  struct stat st;
   memset(&srv, 0, sizeof(srv));
   if( capsuite_capdb_server_start(&srv, 0) ) CAPSUITE_FAIL("server start");
   snprintf(zUri, sizeof(zUri),
     "capdb://127.0.0.1:%d/mnet.db?token=testtoken&insecure=1", srv.port);
-  /* capdbvfs xDelete is a permanent stub (CAPDB_IOERR_DELETE); verify register. */
+  snprintf(zFile, sizeof(zFile), "file:/delete_target.db?mode=rw&capdb=%s", zUri);
   if( capdb_net_vfs_register(zUri, 0)!=CAPDB_NET_OK ) CAPSUITE_FAIL("vfs register");
+  if( capdb_open_v2(zFile, &db,
+        CAPDB_OPEN_READWRITE | CAPDB_OPEN_CREATE | CAPDB_OPEN_URI, "capdbvfs")!=CAPDB_OK ){
+    capsuite_capdb_server_stop(&srv);
+    CAPSUITE_FAIL("vfs create");
+  }
+  if( capdb_exec(db, "PRAGMA journal_mode=MEMORY", 0, 0, 0)!=CAPDB_OK ){
+    capdb_close(db);
+    capsuite_capdb_server_stop(&srv);
+    CAPSUITE_FAIL("vfs journal");
+  }
+  if( capdb_exec(db, "CREATE TABLE t(x)", 0, 0, 0)!=CAPDB_OK ){
+    capdb_close(db);
+    capsuite_capdb_server_stop(&srv);
+    CAPSUITE_FAIL("vfs write");
+  }
+  capdb_close(db);
+  snprintf(zRemoteFile, sizeof(zRemoteFile), "%s/delete_target.db", srv.zDbRoot);
+  if( stat(zRemoteFile, &st)!=0 ){
+    capsuite_capdb_server_stop(&srv);
+    CAPSUITE_FAIL("remote file missing before delete");
+  }
+  pVfs = capdb_vfs_find("capdbvfs");
+  if( pVfs==0 || pVfs->xDelete(pVfs, "delete_target.db", 1)!=CAPDB_OK ){
+    capsuite_capdb_server_stop(&srv);
+    CAPSUITE_FAIL("vfs delete");
+  }
+  if( stat(zRemoteFile, &st)==0 ){
+    capsuite_capdb_server_stop(&srv);
+    CAPSUITE_FAIL("remote file still exists after delete");
+  }
   capsuite_capdb_server_stop(&srv);
   return 0;
 }
@@ -366,6 +490,7 @@ void capsuite_register_capdb(void){
 #if defined(CAPDB_ENABLE_REPLICATION)
     { "capdb-25-rep-async", capdb_25_rep_async },
     { "capdb-27-rep-sync", capdb_27_rep_sync },
+    { "capdb-28-read-preference", capdb_28_read_preference },
 #endif
   };
   capsuite_register_tests(a, (int)(sizeof(a)/sizeof(a[0])));

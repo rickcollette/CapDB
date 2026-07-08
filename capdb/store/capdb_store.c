@@ -22,6 +22,7 @@ struct capdb_volume {
   char *zWalDir;
   int pageSize;
   int generation;
+  int role;
   unsigned long long lsn;
   unsigned long long appliedLsn;
   int fdMain;
@@ -149,6 +150,16 @@ static int storeLoadState(capdb_volume *p){
     fclose(f);
     return -1;
   }
+  {
+    int ch;
+    while( (ch = fgetc(f))=='\n' || ch=='\r' ){}
+    if( ch!=EOF ){
+      ungetc(ch, f);
+      if( fscanf(f, "role=%d\n", &p->role)!=1 ){
+        p->role = 1;
+      }
+    }
+  }
   fclose(f);
   return 0;
 }
@@ -162,8 +173,8 @@ static int storeSaveState(capdb_volume *p){
   snprintf(zTmp, sizeof(zTmp), "%s.tmp", zState);
   f = fopen(zTmp, "w");
   if( f==0 ) return -1;
-  fprintf(f, "lsn=%llu\napplied_lsn=%llu\ngeneration=%d\npage_size=%d\n",
-          p->lsn, p->appliedLsn, p->generation, p->pageSize);
+  fprintf(f, "lsn=%llu\napplied_lsn=%llu\ngeneration=%d\npage_size=%d\nrole=%d\n",
+          p->lsn, p->appliedLsn, p->generation, p->pageSize, p->role);
   fflush(f);
   fd = fileno(f);
   if( fd>=0 && fsync(fd)!=0 ){
@@ -209,7 +220,14 @@ static int storeEnsureLayout(capdb_volume *p, int bCreate){
   if( storeJoinPath(zSub, sizeof(zSub), p->zPath, CAPDB_STORE_DIR_SNAPSHOTS) ) return -1;
   if( storeMkdirP(zSub) ) return -1;
   if( stat(p->zMainDb, &st)!=0 ){
-    if( !bCreate ) return CAPDB_CANTOPEN;
+    if( !bCreate ){
+      char zState[1024];
+      if( storeJoinPath(zState, sizeof(zState), p->zPath, CAPDB_STORE_META_STATE)
+       || access(zState, F_OK)!=0 ){
+        return CAPDB_CANTOPEN;
+      }
+      return CAPDB_OK;
+    }
     /* Leave data/main.db absent until SQLite creates it via OPEN_CREATE. */
     if( storeWriteManifest(p) ) return CAPDB_IOERR;
     if( storeSaveState(p) ) return CAPDB_IOERR;
@@ -245,6 +263,7 @@ int capdb_volume_open(const char *zPath, int flags, capdb_volume **pp){
   if( p->zPath==0 ){ free(p); return CAPDB_NOMEM; }
   p->pageSize = CAPDB_STORE_PAGE_SIZE_DEFAULT;
   p->generation = 1;
+  p->role = 1;
   p->fdMain = -1;
   p->zMainDb = (char*)malloc(strlen(zPath)+64);
   p->zWalDir = (char*)malloc(strlen(zPath)+64);
@@ -449,6 +468,19 @@ int capdb_volume_set_generation(capdb_volume *p, int gen){
   return CAPDB_OK;
 }
 
+int capdb_volume_role(capdb_volume *p){
+  return p ? p->role : 0;
+}
+
+int capdb_volume_set_role(capdb_volume *p, int role){
+  if( p==0 || role<=0 ) return CAPDB_MISUSE;
+  pthread_mutex_lock(&p->mutex);
+  p->role = role;
+  storeSaveState(p);
+  pthread_mutex_unlock(&p->mutex);
+  return CAPDB_OK;
+}
+
 const char *capdb_volume_path(capdb_volume *p){
   return p ? p->zPath : 0;
 }
@@ -467,18 +499,23 @@ int capdb_volume_export_db(capdb_volume *p, const char *zOutPath){
   int fdIn, fdOut;
   if( p==0 || zOutPath==0 ) return CAPDB_MISUSE;
   fdIn = open(p->zMainDb, O_RDONLY);
-  if( fdIn<0 ) return CAPDB_IOERR;
+  if( fdIn<0 && errno!=ENOENT ) return CAPDB_IOERR;
   fdOut = open(zOutPath, O_WRONLY|O_CREAT|O_TRUNC, 0644);
-  if( fdOut<0 ){ close(fdIn); return CAPDB_IOERR; }
-  for(;;){
-    n = read(fdIn, buf, sizeof(buf));
-    if( n==0 ) break;
-    if( n<0 || write(fdOut, buf, (size_t)n)!=n ){
-      close(fdIn); close(fdOut);
-      return CAPDB_IOERR;
-    }
+  if( fdOut<0 ){
+    if( fdIn>=0 ) close(fdIn);
+    return CAPDB_IOERR;
   }
-  close(fdIn);
+  if( fdIn>=0 ){
+    for(;;){
+      n = read(fdIn, buf, sizeof(buf));
+      if( n==0 ) break;
+      if( n<0 || write(fdOut, buf, (size_t)n)!=n ){
+        close(fdIn); close(fdOut);
+        return CAPDB_IOERR;
+      }
+    }
+    close(fdIn);
+  }
   if( fsync(fdOut)!=0 ){ close(fdOut); return CAPDB_IOERR; }
   close(fdOut);
   return CAPDB_OK;
@@ -495,7 +532,9 @@ int capdb_volume_snapshot(capdb_volume *p, unsigned long long lsn,
   if( n<0 || (size_t)n>=sizeof(zSnap) ) return CAPDB_IOERR;
   if( storeMkdirP(zSnap) ) return CAPDB_IOERR;
   snprintf(zDest, sizeof(zDest), "%s/main.db", zSnap);
-  return capdb_volume_export_db(p, zDest);
+  if( capdb_volume_export_db(p, zDest)!=CAPDB_OK ) return CAPDB_IOERR;
+  snprintf(zOutDir, (size_t)nOutDir, "%s", zSnap);
+  return CAPDB_OK;
 }
 
 #endif /* CAPDB_ENABLE_STORE */

@@ -24,6 +24,8 @@ Man pages: [capdb(1)](../man/capdb.1), [capdb-server(1)](../man/capdb-server.1)
 - **capdb-server** — TLS SQL server; executes SQL via the connection pool on server-side database files.
 - **libcapdb_client** — C SDK (`capdb_net_connect`, `capdb_net_exec`, `capdb_net_prepare`, …).
 - **capdbvfs** — Remote VFS: CapDB engine on client, page I/O over the network (DELETE journal mode).
+- Remote VFS delete is implemented through the server path jail and refuses to
+  delete paths currently owned by a pool or open VFS handle.
 
 ## URI format
 
@@ -45,7 +47,9 @@ capdb-server --listen 0.0.0.0:5432 \
   --db-root /var/lib/capdb/databases
 ```
 
-Auth file: one token per line, or `user:password` lines. Paths in `OPEN` must resolve under `--db-root`.
+Auth file: one token per line, or `user:password` lines. Secrets may also be
+stored as `sha256:<64-hex-digest>` or `user:sha256:<64-hex-digest>`. Paths in
+`OPEN` must resolve under `--db-root`.
 
 Development without TLS: add `--insecure` (client must pass `insecure=1` in URI).
 
@@ -98,12 +102,18 @@ capdb-server --storage volume --volume-root /var/lib/capdb/volumes \
   --auth-file /etc/capdb/users.db --insecure
 ```
 
-Client read fan-out (writes go to primary URI host; `SELECT` uses first replica):
+Replica read preference (writes go to the primary URI host; read-only `EXEC`
+and prepared `SELECT`/`PRAGMA`/`EXPLAIN`/top-level `WITH ... SELECT` statements
+use reachable replica streams):
 
 ```
 capdb://PRIMARY:5432/app.db?token=x&read_preference=replica&replicas=REP1:5432,REP2:5433
 ```
 
-Admin: `capdb-ctl status|promote|backup|export --volume PATH`
+The client attempts each comma-separated replica endpoint, keeps the reachable
+replica streams, and round-robins read-only statements across them. If no
+replica can be reached, reads fall back to the primary connection.
+
+Admin: `capdb-ctl status|promote|demote|backup|export --volume PATH`
 
 See [docs/adr/001-storage-engine.md](../docs/adr/001-storage-engine.md) and `capdb/store/README.md`.

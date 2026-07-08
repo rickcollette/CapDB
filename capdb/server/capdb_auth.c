@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <pthread.h>
+#include <openssl/sha.h>
 
 #define AUTH_MAX_FAILS    5
 #define AUTH_LOCKOUT_SEC  30
@@ -33,6 +34,27 @@ static int authConstantTimeEq(const char *a, const char *b){
     c |= (unsigned char)(a[i] ^ b[i]);
   }
   return c==0 && la==lb;
+}
+
+static void authSha256Hex(const char *z, char out[65]){
+  unsigned char digest[SHA256_DIGEST_LENGTH];
+  static const char zHex[] = "0123456789abcdef";
+  int i;
+  SHA256((const unsigned char*)z, strlen(z), digest);
+  for(i=0; i<SHA256_DIGEST_LENGTH; i++){
+    out[i*2] = zHex[digest[i] >> 4];
+    out[i*2+1] = zHex[digest[i] & 0x0f];
+  }
+  out[64] = 0;
+}
+
+static int authSecretMatches(const char *zStored, const char *zSecret){
+  if( strncmp(zStored, "sha256:", 7)==0 ){
+    char zHash[65];
+    authSha256Hex(zSecret, zHash);
+    return authConstantTimeEq(zStored + 7, zHash);
+  }
+  return authConstantTimeEq(zStored, zSecret);
 }
 
 static AuthFailEntry *authFindPeer(const char *zPeer){
@@ -142,7 +164,7 @@ int capdb_auth_check_peer(const char *zAuthFile, int method,
     if( n>=sizeof(line)-1 ) continue;
     if( method==CAPDB_AUTH_TOKEN ){
       zTok = line;
-      if( authConstantTimeEq(zTok, zSecret) ){
+      if( authSecretMatches(zTok, zSecret) ){
         fclose(f);
         authRecordOk(zPeer);
         return 0;
@@ -153,7 +175,7 @@ int capdb_auth_check_peer(const char *zAuthFile, int method,
       if( zPass ){
         *zPass++ = 0;
         if( zUser && authConstantTimeEq(zTok, zUser)
-         && authConstantTimeEq(zPass, zSecret) ){
+         && authSecretMatches(zPass, zSecret) ){
           fclose(f);
           authRecordOk(zPeer);
           return 0;

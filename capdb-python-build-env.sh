@@ -43,16 +43,24 @@ CAPDB_LIBRARIES = ["capdb", "ssl", "crypto", "pthread", "m"]
 CAPDB_LIBRARY_DIRS = ["$CAPDB_BUILD"]
 EOF
 
-cat <<EOF
-# CapDB Python build environment configured
-# Include directories: $CAPDB_CLIENT:$CAPDB_GENERATED
-# Library directory: $CAPDB_BUILD
-# Libraries: libcapdb shared library, libssl, libcrypto, libpthread, libm
 export CAPDB_BUILD="$CAPDB_BUILD"
 export CAPDB_BUILD_DIR="$CAPDB_BUILD"
 export CAPDB_LIBRARY="$CAPDB_BUILD/libcapdb.so"
 export CAPDB_CLIENT_LIBRARY="$CAPDB_BUILD/libcapdb.so"
 export CAPDB_INCLUDE_DIR="$CAPDB_CLIENT"
 export CAPDB_GENERATED_DIR="$CAPDB_GENERATED"
-export LD_LIBRARY_PATH="$CAPDB_BUILD:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$CAPDB_BUILD:${LD_LIBRARY_PATH:-}"
+
+cat <<EOF
+# CapDB Python build environment configured
+# Include directories: $CAPDB_CLIENT:$CAPDB_GENERATED
+# Library directory: $CAPDB_BUILD
+# Libraries: libcapdb shared library, libssl, libcrypto, libpthread, libm
+export CAPDB_BUILD="$CAPDB_BUILD"
+export CAPDB_BUILD_DIR="$CAPDB_BUILD_DIR"
+export CAPDB_LIBRARY="$CAPDB_LIBRARY"
+export CAPDB_CLIENT_LIBRARY="$CAPDB_CLIENT_LIBRARY"
+export CAPDB_INCLUDE_DIR="$CAPDB_INCLUDE_DIR"
+export CAPDB_GENERATED_DIR="$CAPDB_GENERATED_DIR"
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
 EOF

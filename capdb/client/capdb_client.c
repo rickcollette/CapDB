@@ -12,9 +12,13 @@
 #include <ctype.h>
 #include <strings.h>
 
+#define CAPDB_MAX_REPLICA_STREAMS 8
+
 struct capdb_conn {
   capdb_stream *pStream;
   capdb_stream *pReadStream;
+  capdb_stream *aReadStream[CAPDB_MAX_REPLICA_STREAMS];
+  int nReadStream;
   char *zReplicas;
   int iReplica;
   int errcode;
@@ -26,6 +30,7 @@ struct capdb_conn {
 
 struct capdb_net_stmt {
   capdb_conn *pConn;
+  capdb_stream *pStream;
   int id;
   int rc;
   int nCol;
@@ -88,12 +93,71 @@ static void uriFree(UriParams *u){
   memset(u, 0, sizeof(*u));
 }
 
+static const unsigned char *sqlSkipSpace(const unsigned char *z){
+  while( *z && isspace(*z) ) z++;
+  return z;
+}
+
+static const unsigned char *sqlSkipString(const unsigned char *z, unsigned char q){
+  z++;
+  while( *z ){
+    if( *z==q ){
+      z++;
+      if( *z!=q ) break;
+    }else{
+      z++;
+    }
+  }
+  return z;
+}
+
+static int sqlKeywordAt(const unsigned char *z, const char *kw, int n){
+  return strncasecmp((const char*)z, kw, n)==0
+      && !isalnum(z[n]) && z[n]!='_';
+}
+
+static int sqlWithIsReadOnly(const unsigned char *z){
+  int depth = 0;
+  z += 4; /* WITH */
+  z = sqlSkipSpace(z);
+  if( sqlKeywordAt(z, "RECURSIVE", 9) ){
+    z += 9;
+  }
+  for(; *z; z++){
+    if( *z=='\'' || *z=='"' || *z=='`' || *z=='[' ){
+      z = sqlSkipString(z, *z=='[' ? ']' : *z);
+      if( z==0 || *z==0 ) break;
+      z--;
+    }else if( *z=='(' ){
+      depth++;
+    }else if( *z==')' ){
+      if( depth>0 ) depth--;
+    }else if( depth==0 ){
+      if( *z==',' ){
+        continue;
+      }
+      if( isspace(*z) ){
+        continue;
+      }
+      if( sqlKeywordAt(z, "SELECT", 6) ) return 1;
+      if( sqlKeywordAt(z, "INSERT", 6)
+       || sqlKeywordAt(z, "UPDATE", 6)
+       || sqlKeywordAt(z, "DELETE", 6)
+       || sqlKeywordAt(z, "REPLACE", 7) ){
+        return 0;
+      }
+    }
+  }
+  return 0;
+}
+
 static int sqlIsReadOnly(const char *zSql){
   const unsigned char *z = (const unsigned char*)zSql;
-  while( *z && isspace(*z) ) z++;
+  z = sqlSkipSpace(z);
   if( strncasecmp((const char*)z, "SELECT", 6)==0 ) return 1;
   if( strncasecmp((const char*)z, "PRAGMA", 6)==0 ) return 1;
   if( strncasecmp((const char*)z, "EXPLAIN", 7)==0 ) return 1;
+  if( sqlKeywordAt(z, "WITH", 4) ) return sqlWithIsReadOnly(z);
   return 0;
 }
 
@@ -304,6 +368,25 @@ static int connOpenDb(capdb_conn *p, const char *zPath){
   return 0;
 }
 
+static capdb_stream *connChooseReadStream(capdb_conn *p){
+  capdb_stream *strm;
+  if( p==0 || p->nReadStream<=0 ) return 0;
+  if( p->iReplica<0 ) p->iReplica = 0;
+  strm = p->aReadStream[p->iReplica % p->nReadStream];
+  p->iReplica = (p->iReplica + 1) % p->nReadStream;
+  return strm;
+}
+
+static void connAddReplicaStream(capdb_conn *p, capdb_stream *strm){
+  if( p==0 || strm==0 ) return;
+  if( p->nReadStream>=CAPDB_MAX_REPLICA_STREAMS ){
+    capdb_stream_close(strm);
+    return;
+  }
+  p->aReadStream[p->nReadStream++] = strm;
+  if( p->pReadStream==0 ) p->pReadStream = strm;
+}
+
 int capdb_net_connect(const char *zUri, capdb_conn **pp){
   UriParams u;
   capdb_tls_config tls;
@@ -337,13 +420,23 @@ int capdb_net_connect(const char *zUri, capdb_conn **pp){
   }
   if( u.zReadPref && strcmp(u.zReadPref,"replica")==0 && u.zReplicas ){
     char zRepHost[256];
-    int repPort = u.port;
     const char *entry = u.zReplicas;
-    const char *comma = strchr(entry, ',');
-    char buf[256];
-    const char *colon;
-    size_t n = comma ? (size_t)(comma-entry) : strlen(entry);
-    if( n<sizeof(buf) ){
+    while( entry && *entry && p->nReadStream<CAPDB_MAX_REPLICA_STREAMS ){
+      const char *comma = strchr(entry, ',');
+      char buf[256];
+      const char *colon;
+      size_t n = comma ? (size_t)(comma-entry) : strlen(entry);
+      int repPort = u.port;
+      capdb_stream *rep = 0;
+      while( n>0 && isspace((unsigned char)entry[0]) ){
+        entry++;
+        n--;
+      }
+      while( n>0 && isspace((unsigned char)entry[n-1]) ) n--;
+      if( n==0 || n>=sizeof(buf) ){
+        entry = comma ? comma+1 : 0;
+        continue;
+      }
       memcpy(buf, entry, n);
       buf[n] = 0;
       colon = strrchr(buf, ':');
@@ -360,17 +453,20 @@ int capdb_net_connect(const char *zUri, capdb_conn **pp){
       tls.zHostname = zRepHost;
       tls.bInsecure = u.bInsecure;
       tls.connectTimeoutMs = u.connectTimeoutMs;
-      if( capdb_stream_connect(zRepHost, repPort, &tls, &p->pReadStream)==0
-       && streamHandshake(p->pReadStream)==0
-       && streamAuth(p->pReadStream, &u)==0
-       && streamOpenDb(p->pReadStream, u.zPath)==0 ){
-        p->zReplicas = strdup(u.zReplicas);
-      }else if( p->pReadStream ){
-        capdb_stream_close(p->pReadStream);
-        p->pReadStream = 0;
+      if( capdb_stream_connect(zRepHost, repPort, &tls, &rep)==0
+       && streamHandshake(rep)==0
+       && streamAuth(rep, &u)==0
+       && streamOpenDb(rep, u.zPath)==0 ){
+        connAddReplicaStream(p, rep);
+        rep = 0;
       }
+      if( rep ) capdb_stream_close(rep);
+      entry = comma ? comma+1 : 0;
     }
+  if( p->nReadStream>0 ){
+    p->zReplicas = strdup(u.zReplicas);
   }
+}
   uriFree(&u);
   *pp = p;
   return CAPDB_NET_OK;
@@ -385,12 +481,15 @@ int capdb_net_close(capdb_conn *p){
     capdb_buf_clear(&pl);
   }
   capdb_stream_close(p->pStream);
-  if( p->pReadStream ){
+  if( p->nReadStream>0 ){
+    int i;
     capdb_buf pl;
-    capdb_buf_init(&pl);
-    capdb_stream_send_frame(p->pReadStream, CAPDB_MSG_CLOSE, &pl);
-    capdb_buf_clear(&pl);
-    capdb_stream_close(p->pReadStream);
+    for(i=0; i<p->nReadStream; i++){
+      capdb_buf_init(&pl);
+      capdb_stream_send_frame(p->aReadStream[i], CAPDB_MSG_CLOSE, &pl);
+      capdb_buf_clear(&pl);
+      capdb_stream_close(p->aReadStream[i]);
+    }
   }
   free(p->zReplicas);
   free(p->zErrmsg);
@@ -438,7 +537,8 @@ int capdb_net_exec(capdb_conn *p, const char *zSql,
   capdb_reader r;
   capdb_stream *strm;
   if( p==0 || !p->bOpen ) return CAPDB_NET_MISUSE;
-  strm = (p->pReadStream && sqlIsReadOnly(zSql)) ? p->pReadStream : p->pStream;
+  strm = sqlIsReadOnly(zSql) ? connChooseReadStream(p) : 0;
+  if( strm==0 ) strm = p->pStream;
   capdb_buf_init(&pl);
   capdb_buf_append_str(&pl, zSql);
   if( capdb_stream_send_frame(strm, CAPDB_MSG_EXEC, &pl) ){
@@ -560,16 +660,19 @@ int capdb_net_prepare(capdb_conn *p, const char *zSql, capdb_net_stmt **pp){
   unsigned char type;
   capdb_reader r;
   capdb_net_stmt *st;
+  capdb_stream *strm;
   *pp = 0;
   if( p==0 || !p->bOpen ) return CAPDB_NET_MISUSE;
+  strm = sqlIsReadOnly(zSql) ? connChooseReadStream(p) : 0;
+  if( strm==0 ) strm = p->pStream;
   capdb_buf_init(&pl);
   capdb_buf_append_str(&pl, zSql);
-  if( capdb_stream_send_frame(p->pStream, CAPDB_MSG_PREPARE, &pl) ){
+  if( capdb_stream_send_frame(strm, CAPDB_MSG_PREPARE, &pl) ){
     capdb_buf_clear(&pl);
     return CAPDB_NET_ERROR;
   }
   capdb_buf_clear(&pl);
-  if( capdb_stream_recv_frame(p->pStream, &type, &rx) ) return CAPDB_NET_ERROR;
+  if( capdb_stream_recv_frame(strm, &type, &rx) ) return CAPDB_NET_ERROR;
   if( type==CAPDB_MSG_ERROR ){
     int rc;
     char *zMsg = 0;
@@ -597,15 +700,16 @@ int capdb_net_prepare(capdb_conn *p, const char *zSql, capdb_net_stmt **pp){
       unsigned char type2;
       capdb_buf_init(&pl2);
       capdb_buf_append_i32(&pl2, stmtId);
-      capdb_stream_send_frame(p->pStream, CAPDB_MSG_FINALIZE, &pl2);
+      capdb_stream_send_frame(strm, CAPDB_MSG_FINALIZE, &pl2);
       capdb_buf_clear(&pl2);
-      if( capdb_stream_recv_frame(p->pStream, &type2, &rx2) ){
+      if( capdb_stream_recv_frame(strm, &type2, &rx2) ){
         return CAPDB_NET_ERROR;
       }
       capdb_buf_clear(&rx2);
       return CAPDB_NET_ERROR;
     }
     st->pConn = p;
+    st->pStream = strm;
     st->id = stmtId;
     st->nCol = nCol;
     *pp = st;
@@ -636,13 +740,13 @@ static int stmtFetchBatch(capdb_net_stmt *st){
   capdb_buf_init(&pl);
   capdb_buf_append_i32(&pl, st->id);
   capdb_buf_append_i32(&pl, CAPDB_NET_BATCH);
-  if( capdb_stream_send_frame(st->pConn->pStream, CAPDB_MSG_STEP, &pl) ){
+  if( capdb_stream_send_frame(st->pStream, CAPDB_MSG_STEP, &pl) ){
     capdb_buf_clear(&pl);
     return CAPDB_NET_ERROR;
   }
   capdb_buf_clear(&pl);
   for(;;){
-    if( capdb_stream_recv_frame(st->pConn->pStream, &type, &rx) ) return CAPDB_NET_ERROR;
+    if( capdb_stream_recv_frame(st->pStream, &type, &rx) ) return CAPDB_NET_ERROR;
     if( type==CAPDB_MSG_STEP_ROW ){
       unsigned char **na = (unsigned char**)realloc(st->aRow,
                               sizeof(*na)*(st->nRowBuf+1));
@@ -721,14 +825,14 @@ int capdb_net_finalize(capdb_net_stmt *st){
   if( st==0 ) return CAPDB_NET_OK;
   capdb_buf_init(&pl);
   capdb_buf_append_i32(&pl, st->id);
-  if( capdb_stream_send_frame(st->pConn->pStream, CAPDB_MSG_FINALIZE, &pl) ){
+  if( capdb_stream_send_frame(st->pStream, CAPDB_MSG_FINALIZE, &pl) ){
     capdb_buf_clear(&pl);
     stmtClearBuf(st);
     free(st);
     return CAPDB_NET_ERROR;
   }
   capdb_buf_clear(&pl);
-  if( capdb_stream_recv_frame(st->pConn->pStream, &type, &rx) ){
+  if( capdb_stream_recv_frame(st->pStream, &type, &rx) ){
     stmtClearBuf(st);
     free(st);
     return CAPDB_NET_ERROR;
@@ -1023,6 +1127,20 @@ int capdb_net_vfs_check_reserved(capdb_conn *p, int fid, int *pReserved){
   *pReserved = got;
   capdb_buf_clear(&rx);
   return CAPDB_NET_OK;
+}
+
+int capdb_net_vfs_delete(capdb_conn *p, const char *zPath, int syncDir){
+  capdb_buf pl;
+  if( p==0 || zPath==0 ) return CAPDB_NET_MISUSE;
+  capdb_buf_init(&pl);
+  capdb_buf_append_str(&pl, zPath);
+  capdb_buf_append_i32(&pl, syncDir ? 1 : 0);
+  if( capdb_stream_send_frame(p->pStream, CAPDB_MSG_VFS_DELETE, &pl) ){
+    capdb_buf_clear(&pl);
+    return CAPDB_NET_ERROR;
+  }
+  capdb_buf_clear(&pl);
+  return connExpectOk(p, CAPDB_MSG_PONG) ? CAPDB_NET_ERROR : CAPDB_NET_OK;
 }
 
 static int stmtSeekColumn(capdb_net_stmt *st, int iCol, capdb_reader *pR){

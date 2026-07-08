@@ -1,0 +1,28 @@
+[Unit]
+Description=CapDB SQL Server
+Documentation=man:capdb-server(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=capdb
+Group=capdb
+EnvironmentFile=-/etc/capdb/capdb.env
+ExecStart=/usr/local/bin/capdb-server \
+  --listen ${CAPDB_LISTEN} \
+  --auth-file ${CAPDB_AUTH_FILE} \
+  --storage ${CAPDB_STORAGE} \
+  --volume-root ${CAPDB_VOLUME_ROOT} \
+  --cert ${CAPDB_CERT_FILE} \
+  --key ${CAPDB_KEY_FILE}
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/capdb /var/log/capdb
+
+[Install]
+WantedBy=multi-user.target

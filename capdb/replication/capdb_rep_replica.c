@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 struct capdb_rep_receiver {
   capdb_rep_config cfg;
@@ -22,6 +24,30 @@ struct capdb_rep_receiver {
   pthread_t thread;
   pthread_mutex_t mutex;
 };
+
+static unsigned long long repReceiverStartLsn(const char *zVolumeRoot){
+  DIR *d;
+  struct dirent *de;
+  unsigned long long maxLsn = 0;
+  if( zVolumeRoot==0 ) return 0;
+  d = opendir(zVolumeRoot);
+  if( d==0 ) return 0;
+  while( (de = readdir(d))!=0 ){
+    char zVol[1024];
+    struct stat st;
+    capdb_volume *pVol = 0;
+    unsigned long long lsn;
+    if( de->d_name[0]=='.' ) continue;
+    snprintf(zVol, sizeof(zVol), "%s/%s", zVolumeRoot, de->d_name);
+    if( stat(zVol, &st)!=0 || !S_ISDIR(st.st_mode) ) continue;
+    if( capdb_volume_open(zVol, CAPDB_VOLUME_OPEN_RDONLY, &pVol)!=CAPDB_OK ) continue;
+    lsn = capdb_volume_applied_lsn(pVol);
+    if( lsn>maxLsn ) maxLsn = lsn;
+    capdb_volume_close(pVol);
+  }
+  closedir(d);
+  return maxLsn;
+}
 
 int capdb_rep_replica_apply_chunk(const char *zVolumeRoot, const void *hdr,
                                   int nHdr, const void *payload, int nPayload){
@@ -74,6 +100,7 @@ static void *repReplicaLoopFixed(void *pArg){
     capdb_buf pl, rx;
     unsigned char type;
     if( s==0 ){
+      unsigned long long startLsn;
       memset(&tls, 0, sizeof(tls));
       tls.zHostname = p->cfg.zPrimaryHost;
       tls.bInsecure = p->cfg.bTls ? 0 : 1;
@@ -89,7 +116,8 @@ static void *repReplicaLoopFixed(void *pArg){
         continue;
       }
       capdb_buf_init(&pl);
-      capdb_buf_append_i64(&pl, 0);
+      startLsn = repReceiverStartLsn(p->cfg.zVolumePath);
+      capdb_buf_append_i64(&pl, (long long)startLsn);
       if( capdb_rep_send(s, CAPDB_REP_STREAM_START, &pl) ){
         capdb_buf_clear(&pl);
         capdb_stream_close(s); s = 0;

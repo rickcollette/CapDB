@@ -16,7 +16,7 @@
 
 ---
 
-**CapDB** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional **primary/replica HA**.
+**CapDB** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
 
 Standard SQL, portable database files, and a production-focused stack: **connection pool**, **network server**, **volume store**, and **WAL replication**.
 
@@ -29,10 +29,10 @@ Build with **CMake** — no Tcl required. Tests run via `ctest`, `capsuite`, and
 | **Engine** | Full SQL database with `capdb` / `libcapdb` — local files or remote access |
 | **Pool** | `capdb_pool_*` checkout/checkin with WAL defaults and busy-timeout handling |
 | **Network** | `capdb://` remote SQL over TLS; `capdb-server` executes on server-side files |
-| **HA volumes** | `capdbstorevfs` volume layout, WAL segments, LSN tracking, sync replication |
-| **Replication** | Primary streams WAL to replicas; generation fencing and path jails |
+| **Volume store** | `capdbstorevfs` volume layout, WAL segments, LSN tracking, sync replication foundation |
+| **Replication** | Primary streams WAL to replicas; generation fencing and path jails; failover remains operator-driven |
 | **CLI** | Interactive `capdb` shell with dot-commands and batch mode |
-| **Drivers** | Go, Rust, and Python bindings for embedded and network SQL |
+| **Drivers** | Active Go, Rust, and Python bindings for embedded and network SQL; Java/JNI is experimental |
 
 ## Quick start
 
@@ -71,7 +71,7 @@ Generated sources (`capdb.c`, `capdb.h`, `shell.c`) are produced at build time u
 
 ## Language Drivers
 
-CapDB ships production bindings for Go, Rust, and Python. They use CapDB APIs only: embedded connections call `capdb_open_v2` and the `capdb_*` statement API; network connections call `capdb_net_*`.
+CapDB ships active bindings for Go, Rust, and Python. They use CapDB APIs only: embedded connections call `capdb_open_v2` and the `capdb_*` statement API; network connections call `capdb_net_*`. These bindings are covered by local and CI smoke tests, but package publication and broader compatibility matrices are still maturing.
 
 | Language | Embedded SQL | Network SQL | Location |
 |----------|--------------|-------------|----------|
@@ -106,16 +106,19 @@ source ./capdb-python-build-env.sh ./build
 | User guide | [docs/CAPDB.md](docs/CAPDB.md) |
 | Build & install | [docs/BUILD.md](docs/BUILD.md) |
 | Repository layout | [docs/LAYOUT.md](docs/LAYOUT.md) |
+| Operations runbook | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| Upstream sync strategy | [docs/UPSTREAM_SYNC.md](docs/UPSTREAM_SYNC.md) |
 | HA storage ADR | [docs/adr/001-storage-engine.md](docs/adr/001-storage-engine.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | CLI man page | [man/capdb.1](man/capdb.1) |
 | Server man page | [man/capdb-server.1](man/capdb-server.1) |
+| Admin CLI man page | [man/capdb-ctl.1](man/capdb-ctl.1) |
 | Network layer | [capdb/README.md](capdb/README.md) |
 | Connection pool | [capdb/pool/README.md](capdb/pool/README.md) |
 | Volume store | [capdb/store/README.md](capdb/store/README.md) |
 | Replication | [capdb/replication/README.md](capdb/replication/README.md) |
 
-## HA example (primary + replica)
+## Replication Example (Primary + Replica)
 
 ```bash
 # Primary
@@ -130,7 +133,7 @@ capdb-server --storage volume --volume-root /var/lib/capdb/volumes \
   --cert srv.pem --key srv.key
 ```
 
-Client read fan-out: `read_preference=replica` and `replicas=` on the `capdb://` URI. See [capdb/README.md](capdb/README.md).
+Replica read preference: `read_preference=replica` and `replicas=` on the `capdb://` URI route read-only `EXEC` and prepared reads to the first configured replica stream. There is not yet replica balancing or automatic failover across the `replicas=` list. See [capdb/README.md](capdb/README.md).
 
 ## Security
 

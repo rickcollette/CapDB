@@ -1,3 +1,16 @@
+CapDB note
+========================================================================
+
+This directory is retained from the upstream SQLite JNI extension tree as
+reference material. It is not the supported CapDB Java binding surface.
+
+CapDB's current JNI work is the much smaller experimental remote-network shim
+in `capdb/jni/capdb_jni.c`, gated by `CAPDB_ENABLE_JNI_NETWORK`. That shim can
+compile when JNI headers are available, but it is not installed, does not ship
+Java wrapper classes, and is not yet covered by tests.
+
+The upstream text below is intentionally preserved for lineage/reference only.
+
 SQLite3 via JNI
 ========================================================================
 

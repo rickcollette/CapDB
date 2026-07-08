@@ -245,7 +245,7 @@ static int test_password_auth(const char *zUri){
   capdb_conn *p = 0;
   (void)zUri;
   {
-    char zDir[128], zAuth[160], zListen[64], zUri2[256];
+    char zDir[128], zAuth[160], zListen[64], zUri2[256], zUri3[256];
     const char *argv[20];
     pid_t pid;
     int port, i, st, waited;
@@ -257,13 +257,16 @@ static int test_password_auth(const char *zUri){
     snprintf(zListen, sizeof(zListen), "127.0.0.1:%d", port);
     snprintf(zUri2, sizeof(zUri2),
       "capdb://capuser:capsecret@127.0.0.1:%d/mnet.db?insecure=1", port);
+    snprintf(zUri3, sizeof(zUri3),
+      "capdb://127.0.0.1:%d/mnet.db?token=hashtoken&insecure=1", port);
 
     nettest_rm_rf(zDir);
     if( nettest_mkdir_p(zDir) ) return 1;
     {
       FILE *f = fopen(zAuth, "w");
       if( f==0 ) return 1;
-      fputs("capuser:capsecret\n", f);
+      fputs("capuser:sha256:deb118697ff047e9604d2b4913cec462ade29fbfe1a954858b825630960e177f\n", f);
+      fputs("sha256:3417e614ffc302bd9db8f3b86b9016cb0e50423522f457ff5e2c1c20a7410dda\n", f);
       fclose(f);
     }
 
@@ -297,6 +300,10 @@ static int test_password_auth(const char *zUri){
     }
 
     if( capdb_net_connect(zUri2, &p) ) return 1;
+    if( capdb_net_exec(p, "SELECT 1", 0, 0) ) return 1;
+    capdb_net_close(p);
+    p = 0;
+    if( capdb_net_connect(zUri3, &p) ) return 1;
     if( capdb_net_exec(p, "SELECT 1", 0, 0) ) return 1;
     capdb_net_close(p);
 

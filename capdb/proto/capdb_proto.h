@@ -60,6 +60,7 @@ struct capdb_reader {
 #define CAPDB_MSG_FINALIZE_OK   33
 #define CAPDB_MSG_VFS_CHECK_RESERVED     34
 #define CAPDB_MSG_VFS_CHECK_RESERVED_OK  35
+#define CAPDB_MSG_VFS_DELETE    36
 
 #define CAPDB_AUTH_TOKEN       1
 #define CAPDB_AUTH_PASSWORD    2
