@@ -555,6 +555,13 @@ endif()
 # Tests
 # ---------------------------------------------------------------------------
 if(CAPDB_BUILD_TESTS)
+  add_executable(sqlite_compat_compile tests/capdb/sqlite_compat_compile.c)
+  target_include_directories(sqlite_compat_compile PRIVATE
+    "${CAPDB_GEN_DIR}"
+    "${CAPDB_ROOT}/compat")
+  target_link_libraries(sqlite_compat_compile PRIVATE capdb_shared)
+  add_test(NAME sqlite_compat_compile COMMAND sqlite_compat_compile)
+
   if(CAPDB_ENABLE_POOL)
     add_executable(threadtest_pool tests/capdb/threadtest_pool.c)
     target_compile_definitions(threadtest_pool PRIVATE ${CAPDB_COMPILE_DEFS})
@@ -751,6 +758,7 @@ install(TARGETS capdb capdb_shared capdb_cli
   RUNTIME DESTINATION bin
 )
 install(FILES "${CAPDB_H}" core/capdbext.h DESTINATION include)
+install(FILES compat/sqlite3_capdb.h DESTINATION include)
 if(CAPDB_ENABLE_NETWORK)
   install(TARGETS capdb-server RUNTIME DESTINATION bin)
   install(TARGETS capdb_client ARCHIVE DESTINATION lib)

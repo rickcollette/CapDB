@@ -74,6 +74,24 @@ extern "C" {
     fn capdb_errmsg(db: *mut capdb) -> *const c_char;
     fn capdb_changes(db: *mut capdb) -> c_int;
     fn capdb_last_insert_rowid(db: *mut capdb) -> c_longlong;
+    fn capdb_busy_timeout(db: *mut capdb, ms: c_int) -> c_int;
+    fn capdb_bind_null(stmt: *mut capdb_stmt, index: c_int) -> c_int;
+    fn capdb_bind_int64(stmt: *mut capdb_stmt, index: c_int, value: c_longlong) -> c_int;
+    fn capdb_bind_double(stmt: *mut capdb_stmt, index: c_int, value: c_double) -> c_int;
+    fn capdb_bind_text(
+        stmt: *mut capdb_stmt,
+        index: c_int,
+        value: *const c_char,
+        length: c_int,
+        destructor: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> c_int;
+    fn capdb_bind_blob(
+        stmt: *mut capdb_stmt,
+        index: c_int,
+        value: *const c_void,
+        length: c_int,
+        destructor: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> c_int;
 
     fn capdb_net_connect(uri: *const c_char, pp: *mut *mut capdb_conn) -> c_int;
     fn capdb_net_close(conn: *mut capdb_conn) -> c_int;
@@ -133,6 +151,37 @@ pub struct ExecuteResult {
     pub last_insert_rowid: i64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CapDbValue {
+    Null,
+    Integer(i64),
+    Real(f64),
+    Text(String),
+    Blob(Vec<u8>),
+}
+
+impl From<&str> for CapDbValue {
+    fn from(value: &str) -> Self {
+        Self::Text(value.to_owned())
+    }
+}
+
+impl From<String> for CapDbValue {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
+
+impl From<i64> for CapDbValue {
+    fn from(value: i64) -> Self {
+        Self::Integer(value)
+    }
+}
+
+// CapDB connections may move between threads, but callers must serialize use of
+// an individual connection. Deliberately do not implement Sync.
+unsafe impl Send for CapDbConnection {}
+
 impl CapDbConnection {
     pub fn open(mode: CapDbMode) -> Result<Self> {
         match &mode {
@@ -147,6 +196,14 @@ impl CapDbConnection {
                         unsafe { capdb_close(db) };
                     }
                     return Err(CapDbError::Connection(format!("{msg} (rc={rc})")));
+                }
+                let timeout_rc = unsafe { capdb_busy_timeout(db, 5_000) };
+                if timeout_rc != CAPDB_OK {
+                    let msg = embedded_errmsg(db);
+                    unsafe { capdb_close(db) };
+                    return Err(CapDbError::Connection(format!(
+                        "failed to configure busy timeout: {msg} (rc={timeout_rc})"
+                    )));
                 }
                 Ok(Self {
                     mode,
@@ -216,6 +273,99 @@ impl CapDbConnection {
 
     pub fn apply_schema(&self, schema_sql: &str) -> Result<()> {
         self.execute(schema_sql).map(|_| ())
+    }
+
+    pub fn set_busy_timeout(&self, milliseconds: u32) -> Result<()> {
+        match self.handle {
+            Handle::Embedded(db) => {
+                let milliseconds = c_int::try_from(milliseconds)
+                    .map_err(|_| CapDbError::Query("busy timeout exceeds i32::MAX".into()))?;
+                let rc = unsafe { capdb_busy_timeout(db, milliseconds) };
+                if rc == CAPDB_OK {
+                    Ok(())
+                } else {
+                    Err(CapDbError::Query(format!(
+                        "{} (rc={rc})",
+                        embedded_errmsg(db)
+                    )))
+                }
+            }
+            Handle::Network(_) => Err(CapDbError::Query(
+                "busy timeout is configured by the CapDB server in network mode".into(),
+            )),
+        }
+    }
+
+    pub fn execute_params(&self, sql: &str, params: &[CapDbValue]) -> Result<ExecuteResult> {
+        let Handle::Embedded(db) = self.handle else {
+            return Err(CapDbError::Query(
+                "parameter binding is not yet supported in network mode".into(),
+            ));
+        };
+        let stmt = prepare_and_bind(db, sql, params)?;
+        let rc = unsafe { capdb_step(stmt) };
+        let result = if rc == CAPDB_DONE || rc == CAPDB_ROW {
+            Ok(ExecuteResult {
+                rows_affected: unsafe { capdb_changes(db) as i64 },
+                last_insert_rowid: unsafe { capdb_last_insert_rowid(db) as i64 },
+            })
+        } else {
+            Err(CapDbError::Query(format!(
+                "{} (rc={rc})",
+                embedded_errmsg(db)
+            )))
+        };
+        let finalize_rc = unsafe { capdb_finalize(stmt) };
+        if result.is_ok() && finalize_rc != CAPDB_OK {
+            return Err(CapDbError::Query(format!(
+                "statement finalize failed (rc={finalize_rc})"
+            )));
+        }
+        result
+    }
+
+    pub fn query_json_params(&self, sql: &str, params: &[CapDbValue]) -> Result<Value> {
+        let Handle::Embedded(db) = self.handle else {
+            return Err(CapDbError::Query(
+                "parameter binding is not yet supported in network mode".into(),
+            ));
+        };
+        let stmt = prepare_and_bind(db, sql, params)?;
+        query_embedded_stmt_json(db, stmt)
+    }
+
+    pub fn transaction<T>(&self, operation: impl FnOnce(&Self) -> Result<T>) -> Result<T> {
+        self.execute("BEGIN IMMEDIATE")?;
+        match operation(self) {
+            Ok(value) => {
+                if let Err(err) = self.execute("COMMIT") {
+                    let _ = self.execute("ROLLBACK");
+                    Err(err)
+                } else {
+                    Ok(value)
+                }
+            }
+            Err(err) => {
+                let _ = self.execute("ROLLBACK");
+                Err(err)
+            }
+        }
+    }
+
+    pub fn integrity_check(&self) -> Result<bool> {
+        let rows = self.query_json("PRAGMA integrity_check")?;
+        Ok(rows
+            .as_array()
+            .and_then(|rows| rows.first())
+            .and_then(|row| row.as_object())
+            .and_then(|row| row.values().next())
+            .and_then(Value::as_str)
+            == Some("ok"))
+    }
+
+    pub fn checkpoint(&self) -> Result<()> {
+        self.query_json("PRAGMA wal_checkpoint(TRUNCATE)")
+            .map(|_| ())
     }
 
     pub fn query_json(&self, sql: &str) -> Result<Value> {
@@ -292,6 +442,98 @@ fn query_embedded_json(db: *mut capdb, sql: *const c_char) -> Result<Value> {
     })();
     unsafe { capdb_finalize(stmt) };
     result
+}
+
+fn query_embedded_stmt_json(db: *mut capdb, stmt: *mut capdb_stmt) -> Result<Value> {
+    let result = (|| {
+        let ncol = unsafe { capdb_column_count(stmt) };
+        let names = (0..ncol)
+            .map(|i| {
+                let p = unsafe { capdb_column_name(stmt, i) };
+                if p.is_null() {
+                    format!("col{i}")
+                } else {
+                    unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned()
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut rows = Vec::new();
+        loop {
+            match unsafe { capdb_step(stmt) } {
+                CAPDB_ROW => {
+                    let mut row = Map::new();
+                    for i in 0..ncol {
+                        row.insert(names[i as usize].clone(), embedded_value(stmt, i));
+                    }
+                    rows.push(Value::Object(row));
+                }
+                CAPDB_DONE => break,
+                rc => {
+                    return Err(CapDbError::Query(format!(
+                        "{} (rc={rc})",
+                        embedded_errmsg(db)
+                    )))
+                }
+            }
+        }
+        Ok(Value::Array(rows))
+    })();
+    let finalize_rc = unsafe { capdb_finalize(stmt) };
+    if result.is_ok() && finalize_rc != CAPDB_OK {
+        return Err(CapDbError::Query(format!(
+            "statement finalize failed (rc={finalize_rc})"
+        )));
+    }
+    result
+}
+
+fn prepare_and_bind(db: *mut capdb, sql: &str, params: &[CapDbValue]) -> Result<*mut capdb_stmt> {
+    let sql = CString::new(sql)?;
+    let mut stmt = ptr::null_mut();
+    let rc = unsafe { capdb_prepare_v2(db, sql.as_ptr(), -1, &mut stmt, ptr::null_mut()) };
+    if rc != CAPDB_OK || stmt.is_null() {
+        return Err(CapDbError::Query(format!(
+            "{} (rc={rc})",
+            embedded_errmsg(db)
+        )));
+    }
+    for (offset, value) in params.iter().enumerate() {
+        let index = (offset + 1) as c_int;
+        let rc = unsafe {
+            match value {
+                CapDbValue::Null => capdb_bind_null(stmt, index),
+                CapDbValue::Integer(value) => capdb_bind_int64(stmt, index, *value),
+                CapDbValue::Real(value) => capdb_bind_double(stmt, index, *value),
+                CapDbValue::Text(value) => capdb_bind_text(
+                    stmt,
+                    index,
+                    value.as_ptr().cast(),
+                    value.len() as c_int,
+                    transient_destructor(),
+                ),
+                CapDbValue::Blob(value) => capdb_bind_blob(
+                    stmt,
+                    index,
+                    value.as_ptr().cast(),
+                    value.len() as c_int,
+                    transient_destructor(),
+                ),
+            }
+        };
+        if rc != CAPDB_OK {
+            unsafe { capdb_finalize(stmt) };
+            return Err(CapDbError::Query(format!(
+                "parameter {index} bind failed: {} (rc={rc})",
+                embedded_errmsg(db)
+            )));
+        }
+    }
+    Ok(stmt)
+}
+
+fn transient_destructor() -> Option<unsafe extern "C" fn(*mut c_void)> {
+    // CAPDB_TRANSIENT is the sentinel destructor value -1, matching the C API.
+    unsafe { std::mem::transmute::<isize, Option<unsafe extern "C" fn(*mut c_void)>>(-1) }
 }
 
 fn query_network_json(conn: *mut capdb_conn, sql: *const c_char) -> Result<Value> {
@@ -438,6 +680,38 @@ mod tests {
         let rows = conn.query_json("SELECT id, name FROM t").unwrap();
         assert_eq!(rows[0]["id"], 1);
         assert_eq!(rows[0]["name"], "alice");
+    }
+
+    #[test]
+    fn embedded_bound_parameters_and_rollback() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bound.capdb");
+        let conn = CapDbConnection::open(CapDbMode::Embedded { path }).unwrap();
+        conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+            .unwrap();
+        conn.execute_params("INSERT INTO t(name) VALUES(?)", &[CapDbValue::from("a'b")])
+            .unwrap();
+        let rows = conn
+            .query_json_params(
+                "SELECT name FROM t WHERE name = ?",
+                &[CapDbValue::from("a'b")],
+            )
+            .unwrap();
+        assert_eq!(rows[0]["name"], "a'b");
+
+        let failed: Result<()> = conn.transaction(|tx| {
+            tx.execute_params(
+                "INSERT INTO t(name) VALUES(?)",
+                &[CapDbValue::from("rollback")],
+            )?;
+            Err(CapDbError::Query("force rollback".into()))
+        });
+        assert!(failed.is_err());
+        let rows = conn
+            .query_json("SELECT name FROM t WHERE name = 'rollback'")
+            .unwrap();
+        assert_eq!(rows.as_array().unwrap().len(), 0);
+        assert!(conn.integrity_check().unwrap());
     }
 
     #[test]
