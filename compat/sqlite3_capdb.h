@@ -1,6 +1,11 @@
 #ifndef CAPDB_SQLITE3_SOURCE_COMPAT_H
 #define CAPDB_SQLITE3_SOURCE_COMPAT_H
 
+/* Preserve SQLite's compile-time feature request at the CapDB API boundary. */
+#if defined(SQLITE_ENABLE_SESSION) && !defined(CAPDB_ENABLE_SESSION)
+#define CAPDB_ENABLE_SESSION 1
+#endif
+
 #include <capdb.h>
 
 /*
@@ -17,6 +22,8 @@ typedef capdb_value sqlite3_value;
 typedef capdb_backup sqlite3_backup;
 typedef capdb_vfs sqlite3_vfs;
 typedef capdb_filename sqlite3_filename;
+typedef capdb_session sqlite3_session;
+typedef capdb_changeset_iter sqlite3_changeset_iter;
 typedef capdb_int64 sqlite3_int64;
 typedef capdb_uint64 sqlite3_uint64;
 
@@ -51,6 +58,23 @@ typedef capdb_uint64 sqlite3_uint64;
 #define sqlite3_sourceid capdb_sourceid
 #define sqlite3_system_errno capdb_system_errno
 #define sqlite3_update_hook capdb_update_hook
+#define sqlite3_bind_parameter_name capdb_bind_parameter_name
+#define sqlite3_column_database_name capdb_column_database_name
+#define sqlite3_column_origin_name capdb_column_origin_name
+#define sqlite3_column_table_name capdb_column_table_name
+#define sqlite3_create_function_v2 capdb_create_function_v2
+#define sqlite3_create_window_function capdb_create_window_function
+#define sqlite3_deserialize capdb_deserialize
+#define sqlite3_limit capdb_limit
+#define sqlite3_malloc64 capdb_malloc64
+#define sqlite3_serialize capdb_serialize
+#define sqlite3_stmt_status capdb_stmt_status
+#define sqlite3session_attach capdb_session_attach
+#define sqlite3session_changeset capdb_session_changeset
+#define sqlite3session_create capdb_session_create
+#define sqlite3session_delete capdb_session_delete
+#define sqlite3session_patchset capdb_session_patchset
+#define sqlite3changeset_apply capdb_changeset_apply
 
 #define SQLITE_COPY CAPDB_COPY
 #define SQLITE_SAVEPOINT CAPDB_SAVEPOINT
@@ -66,5 +90,25 @@ typedef capdb_uint64 sqlite3_uint64;
 #define SQLITE_LIMIT_LIKE_PATTERN_LENGTH CAPDB_LIMIT_LIKE_PATTERN_LENGTH
 #define SQLITE_LIMIT_VARIABLE_NUMBER CAPDB_LIMIT_VARIABLE_NUMBER
 #define SQLITE_LIMIT_TRIGGER_DEPTH CAPDB_LIMIT_TRIGGER_DEPTH
+
+#define SQLITE_DBCONFIG_DEFENSIVE CAPDB_DBCONFIG_DEFENSIVE
+#define SQLITE_DBCONFIG_DQS_DDL CAPDB_DBCONFIG_DQS_DDL
+#define SQLITE_DBCONFIG_DQS_DML CAPDB_DBCONFIG_DQS_DML
+#define SQLITE_DBCONFIG_ENABLE_FKEY CAPDB_DBCONFIG_ENABLE_FKEY
+#define SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION CAPDB_DBCONFIG_ENABLE_LOAD_EXTENSION
+#define SQLITE_DESERIALIZE_FREEONCLOSE CAPDB_DESERIALIZE_FREEONCLOSE
+#define SQLITE_DESERIALIZE_RESIZEABLE CAPDB_DESERIALIZE_RESIZEABLE
+#define SQLITE_DIRECTONLY CAPDB_DIRECTONLY
+#define SQLITE_RECURSIVE CAPDB_RECURSIVE
+#define SQLITE_STMTSTATUS_REPREPARE CAPDB_STMTSTATUS_REPREPARE
+
+#define SQLITE_CHANGESET_DATA CAPDB_CHANGESET_DATA
+#define SQLITE_CHANGESET_NOTFOUND CAPDB_CHANGESET_NOTFOUND
+#define SQLITE_CHANGESET_CONFLICT CAPDB_CHANGESET_CONFLICT
+#define SQLITE_CHANGESET_CONSTRAINT CAPDB_CHANGESET_CONSTRAINT
+#define SQLITE_CHANGESET_FOREIGN_KEY CAPDB_CHANGESET_FOREIGN_KEY
+#define SQLITE_CHANGESET_OMIT CAPDB_CHANGESET_OMIT
+#define SQLITE_CHANGESET_REPLACE CAPDB_CHANGESET_REPLACE
+#define SQLITE_CHANGESET_ABORT CAPDB_CHANGESET_ABORT
 
 #endif
