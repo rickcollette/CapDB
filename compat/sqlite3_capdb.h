@@ -22,8 +22,10 @@ typedef capdb_value sqlite3_value;
 typedef capdb_backup sqlite3_backup;
 typedef capdb_vfs sqlite3_vfs;
 typedef capdb_filename sqlite3_filename;
+#if defined(SQLITE_ENABLE_SESSION)
 typedef capdb_session sqlite3_session;
 typedef capdb_changeset_iter sqlite3_changeset_iter;
+#endif
 typedef capdb_int64 sqlite3_int64;
 typedef capdb_uint64 sqlite3_uint64;
 
