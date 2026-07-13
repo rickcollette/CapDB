@@ -799,8 +799,6 @@ endif()
 if(CAPDB_ENABLE_STORE)
   install(FILES man/capdb-ctl.1 DESTINATION share/man/man1)
 endif()
-install(FILES packaging/systemd/capdb.service DESTINATION share/capdb/systemd)
-
 install(FILES "${CAPDB_C}" DESTINATION src)
 
 # Install pkg-config file
