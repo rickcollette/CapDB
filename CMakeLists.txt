@@ -18,6 +18,7 @@ option(CAPDB_ENABLE_STORE "Enable CapDB volume store (HA foundation)" ON)
 option(CAPDB_ENABLE_REPLICATION "Enable WAL replication (implies store)" ON)
 option(CAPDB_ENABLE_FTS5 "Enable FTS5" ON)
 option(CAPDB_ENABLE_SESSION "Enable session and changeset APIs" ON)
+option(CAPDB_ENABLE_COLUMN_METADATA "Enable database, table, and origin column metadata APIs" ON)
 option(CAPDB_ENABLE_MATH_FUNCTIONS "Enable math SQL functions" ON)
 option(CAPDB_ENABLE_PERCENTILE "Enable percentile extension" ON)
 option(CAPDB_HAVE_ZLIB "Link zlib" ON)
@@ -85,6 +86,12 @@ if(CAPDB_ENABLE_SESSION)
   list(APPEND CAPDB_COMPILE_DEFS
     CAPDB_ENABLE_SESSION
     CAPDB_ENABLE_PREUPDATE_HOOK)
+endif()
+if(CAPDB_ENABLE_COLUMN_METADATA)
+  # sqlite3_capdb.h exposes the SQLite column-metadata compatibility names.
+  # Keep the matching production symbols in every CapDB library target so a
+  # consumer cannot compile successfully and then fail at final link/runtime.
+  list(APPEND CAPDB_COMPILE_DEFS CAPDB_ENABLE_COLUMN_METADATA)
 endif()
 
 if(CAPDB_WARNINGS)
