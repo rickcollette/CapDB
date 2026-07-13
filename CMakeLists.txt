@@ -17,6 +17,7 @@ option(CAPDB_ENABLE_NETWORK "Enable capdb TLS network layer (implies pool)" ON)
 option(CAPDB_ENABLE_STORE "Enable CapDB volume store (HA foundation)" ON)
 option(CAPDB_ENABLE_REPLICATION "Enable WAL replication (implies store)" ON)
 option(CAPDB_ENABLE_FTS5 "Enable FTS5" ON)
+option(CAPDB_ENABLE_SESSION "Enable session and changeset APIs" ON)
 option(CAPDB_ENABLE_MATH_FUNCTIONS "Enable math SQL functions" ON)
 option(CAPDB_ENABLE_PERCENTILE "Enable percentile extension" ON)
 option(CAPDB_HAVE_ZLIB "Link zlib" ON)
@@ -77,6 +78,13 @@ if(CAPDB_ENABLE_STORE)
 endif()
 if(CAPDB_ENABLE_REPLICATION)
   list(APPEND CAPDB_COMPILE_DEFS CAPDB_ENABLE_REPLICATION)
+endif()
+if(CAPDB_ENABLE_SESSION)
+  # The session implementation records row changes through the pre-update
+  # hook; enabling only its public declarations produces an unusable ABI.
+  list(APPEND CAPDB_COMPILE_DEFS
+    CAPDB_ENABLE_SESSION
+    CAPDB_ENABLE_PREUPDATE_HOOK)
 endif()
 
 if(CAPDB_WARNINGS)

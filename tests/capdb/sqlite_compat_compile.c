@@ -15,12 +15,25 @@ int main(void) {
   int (*extended_error)(capdb *) = sqlite3_extended_errcode;
   const char *(*library_version)(void) = sqlite3_libversion;
   int (*library_version_number)(void) = sqlite3_libversion_number;
+  int (*volatile session_create)(sqlite3 *, const char *, sqlite3_session **) =
+      sqlite3session_create;
+  void (*volatile session_delete)(sqlite3_session *) = sqlite3session_delete;
+  int (*volatile session_changeset)(sqlite3_session *, int *, void **) =
+      sqlite3session_changeset;
+  int (*volatile changeset_apply)(
+      sqlite3 *, int, void *, int (*)(void *, const char *),
+      int (*)(void *, int, sqlite3_changeset_iter *), void *) =
+      sqlite3changeset_apply;
   (void)enable_extension;
   (void)backup_remaining;
   (void)result_null;
   (void)extended_error;
   (void)library_version;
   (void)library_version_number;
+  (void)session_create;
+  (void)session_delete;
+  (void)session_changeset;
+  (void)changeset_apply;
   (void)database;
   (void)statement;
   (void)context;

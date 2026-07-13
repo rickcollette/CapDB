@@ -1764,7 +1764,7 @@ static void sessionResetDbState(Session *p){
   p->pPool = 0;
 }
 
-static void sessionFree(Session *p){
+static void serverSessionFree(Session *p){
   if( p==0 ) return;
   sessionResetDbState(p);
   free(p->zDbPath);
@@ -2001,7 +2001,7 @@ done:
   {
     capdb_server *pSrv = p->pSrv;
     int slot = p->iTrackSlot;
-    sessionFree(p);
+    serverSessionFree(p);
     serverSessionReleaseSlot(pSrv, slot);
     pthread_mutex_lock(&pSrv->poolMutex);
     pSrv->nSessions--;
