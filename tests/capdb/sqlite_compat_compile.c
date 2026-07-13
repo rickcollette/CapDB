@@ -1,6 +1,10 @@
 #include <sqlite3_capdb.h>
 
 int main(void) {
+  sqlite3 *database = (capdb *)0;
+  sqlite3_stmt *statement = (capdb_stmt *)0;
+  sqlite3_context *context = (capdb_context *)0;
+  sqlite3_value *value = (capdb_value *)0;
   int (*enable_extension)(capdb *, int) = sqlite3_enable_load_extension;
   int (*backup_remaining)(capdb_backup *) = sqlite3_backup_remaining;
   void (*result_null)(capdb_context *) = sqlite3_result_null;
@@ -9,6 +13,10 @@ int main(void) {
   (void)backup_remaining;
   (void)result_null;
   (void)extended_error;
+  (void)database;
+  (void)statement;
+  (void)context;
+  (void)value;
   if (SQLITE_COPY != CAPDB_COPY || SQLITE_LIMIT_COLUMN != CAPDB_LIMIT_COLUMN) {
     return 1;
   }

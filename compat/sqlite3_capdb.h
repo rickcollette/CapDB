@@ -3,6 +3,23 @@
 
 #include <capdb.h>
 
+/*
+ * Canonical source-level SQLite type spellings.  Consumers must see these as
+ * aliases of CapDB's actual public objects; declaring unrelated opaque
+ * `struct sqlite3_context` or `struct sqlite3_value` types makes callback
+ * prototypes incompatible in C++ and was the source of downstream duplicate
+ * typedef failures.
+ */
+typedef capdb sqlite3;
+typedef capdb_stmt sqlite3_stmt;
+typedef capdb_context sqlite3_context;
+typedef capdb_value sqlite3_value;
+typedef capdb_backup sqlite3_backup;
+typedef capdb_vfs sqlite3_vfs;
+typedef capdb_filename sqlite3_filename;
+typedef capdb_int64 sqlite3_int64;
+typedef capdb_uint64 sqlite3_uint64;
+
 /* SQLite spellings supported directly by the CapDB public API. */
 #define sqlite3_enable_load_extension capdb_enable_load_extension
 #define sqlite3_load_extension capdb_load_extension
