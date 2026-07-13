@@ -20,7 +20,18 @@ typedef capdb_filename sqlite3_filename;
 typedef capdb_int64 sqlite3_int64;
 typedef capdb_uint64 sqlite3_uint64;
 
+/*
+ * Compile-time SQLite identity spellings are part of sqlite3.h's public
+ * source contract.  They describe the compatibility ABI implemented by this
+ * CapDB build and must remain coherent with the corresponding CapDB values.
+ */
+#define SQLITE_VERSION CAPDB_VERSION
+#define SQLITE_VERSION_NUMBER CAPDB_VERSION_NUMBER
+#define SQLITE_SOURCE_ID CAPDB_SOURCE_ID
+
 /* SQLite spellings supported directly by the CapDB public API. */
+#define sqlite3_libversion capdb_libversion
+#define sqlite3_libversion_number capdb_libversion_number
 #define sqlite3_enable_load_extension capdb_enable_load_extension
 #define sqlite3_load_extension capdb_load_extension
 #define sqlite3_backup_init capdb_backup_init
