@@ -329,3 +329,44 @@ func TestEmbeddedConformance(t *testing.T) {
 		t.Fatalf("embedded rollback count = %d, want 1", count)
 	}
 }
+
+func TestEmbeddedDSNOptions(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "options.capdb")
+	dsn := dbPath + "?_loc=auto&_sync=FULL&_foreign_keys=1&_txlock=exclusive&_busy_timeout=50"
+	db, err := sql.Open("capdb-embedded", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if _, err := db.Exec(`CREATE TABLE parent(id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE child(parent_id INTEGER REFERENCES parent(id))`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO child(parent_id) VALUES(99)`); err == nil {
+		t.Fatal("foreign-key DSN option was not applied")
+	}
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("database was not created at the DSN path: %v", err)
+	}
+	if _, err := os.Stat(dsn); !os.IsNotExist(err) {
+		t.Fatalf("DSN options leaked into database filename: %v", err)
+	}
+}
+
+func TestParseEmbeddedDSNRejectsInvalidOptions(t *testing.T) {
+	for _, dsn := range []string{
+		"cache.capdb?_busy_timeout=-1",
+		"cache.capdb?_foreign_keys=maybe",
+		"cache.capdb?_sync=unsafe",
+		"cache.capdb?_txlock=unknown",
+		"cache.capdb?_loc=Moon/Base",
+		"cache.capdb?unknown=1",
+	} {
+		if _, _, err := parseEmbeddedDSN(dsn); err == nil {
+			t.Fatalf("parseEmbeddedDSN(%q) unexpectedly succeeded", dsn)
+		}
+	}
+}

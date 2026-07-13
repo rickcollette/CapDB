@@ -28,6 +28,8 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"io"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,15 +55,13 @@ func init() {
 type EmbeddedDriver struct{}
 
 func (EmbeddedDriver) Open(dsn string) (driver.Conn, error) {
-	if dsn == "" {
-		return nil, fmt.Errorf("capdb: DSN cannot be empty")
+	path, options, err := parseEmbeddedDSN(dsn)
+	if err != nil {
+		return nil, err
 	}
-	if strings.HasPrefix(dsn, "file:") {
-		dsn = strings.TrimPrefix(dsn, "file:")
-	}
-	cdsn := C.CString(dsn)
+	cdsn := C.CString(path)
 	defer C.free(unsafe.Pointer(cdsn))
-	c := &embeddedConn{}
+	c := &embeddedConn{beginSQL: options.beginSQL}
 	flags := C.int(C.CAPDB_OPEN_READWRITE | C.CAPDB_OPEN_CREATE | C.CAPDB_OPEN_URI)
 	rc := C.capdb_open_v2(cdsn, &c.db, flags, nil)
 	if int(rc) != capdbOK {
@@ -71,12 +71,108 @@ func (EmbeddedDriver) Open(dsn string) (driver.Conn, error) {
 		}
 		return nil, fmt.Errorf("capdb: open failed (rc=%d): %s", int(rc), msg)
 	}
+	if options.busyTimeoutMS >= 0 {
+		if rc := C.capdb_busy_timeout(c.db, C.int(options.busyTimeoutMS)); int(rc) != capdbOK {
+			msg := embeddedErrmsg(c.db)
+			C.capdb_close(c.db)
+			return nil, fmt.Errorf("capdb: setting busy timeout failed (rc=%d): %s", int(rc), msg)
+		}
+	}
+	for _, pragma := range options.pragmas {
+		if err := c.execLocked(pragma); err != nil {
+			C.capdb_close(c.db)
+			return nil, fmt.Errorf("capdb: applying embedded DSN option: %w", err)
+		}
+	}
 	return c, nil
 }
 
+type embeddedOptions struct {
+	beginSQL      string
+	busyTimeoutMS int
+	pragmas       []string
+}
+
+func parseEmbeddedDSN(dsn string) (string, embeddedOptions, error) {
+	options := embeddedOptions{beginSQL: "BEGIN", busyTimeoutMS: -1}
+	if dsn == "" {
+		return "", options, fmt.Errorf("capdb: DSN cannot be empty")
+	}
+	if strings.HasPrefix(dsn, "file:") {
+		dsn = strings.TrimPrefix(dsn, "file:")
+	}
+	path, rawQuery, _ := strings.Cut(dsn, "?")
+	if path == "" {
+		return "", options, fmt.Errorf("capdb: DSN path cannot be empty")
+	}
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "", options, fmt.Errorf("capdb: invalid embedded DSN options: %w", err)
+	}
+	for key := range query {
+		switch key {
+		case "_busy_timeout", "_foreign_keys", "_loc", "_sync", "_txlock":
+		default:
+			return "", options, fmt.Errorf("capdb: unsupported embedded DSN option %q", key)
+		}
+	}
+	if value := query.Get("_busy_timeout"); value != "" {
+		ms, err := strconv.Atoi(value)
+		if err != nil || ms < 0 {
+			return "", options, fmt.Errorf("capdb: invalid _busy_timeout %q", value)
+		}
+		options.busyTimeoutMS = ms
+	}
+	if value := query.Get("_foreign_keys"); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return "", options, fmt.Errorf("capdb: invalid _foreign_keys %q", value)
+		}
+		if enabled {
+			options.pragmas = append(options.pragmas, "PRAGMA foreign_keys=ON")
+		} else {
+			options.pragmas = append(options.pragmas, "PRAGMA foreign_keys=OFF")
+		}
+	}
+	if value := query.Get("_sync"); value != "" {
+		value = strings.ToUpper(value)
+		switch value {
+		case "0":
+			value = "OFF"
+		case "1":
+			value = "NORMAL"
+		case "2":
+			value = "FULL"
+		case "3":
+			value = "EXTRA"
+		case "OFF", "NORMAL", "FULL", "EXTRA":
+		default:
+			return "", options, fmt.Errorf("capdb: invalid _sync %q", value)
+		}
+		options.pragmas = append(options.pragmas, "PRAGMA synchronous="+value)
+	}
+	if value := query.Get("_txlock"); value != "" {
+		switch strings.ToLower(value) {
+		case "deferred":
+			options.beginSQL = "BEGIN DEFERRED"
+		case "immediate":
+			options.beginSQL = "BEGIN IMMEDIATE"
+		case "exclusive":
+			options.beginSQL = "BEGIN EXCLUSIVE"
+		default:
+			return "", options, fmt.Errorf("capdb: invalid _txlock %q", value)
+		}
+	}
+	if value := query.Get("_loc"); value != "" && value != "auto" {
+		return "", options, fmt.Errorf("capdb: unsupported _loc %q (only auto is supported)", value)
+	}
+	return path, options, nil
+}
+
 type embeddedConn struct {
-	mu sync.Mutex
-	db *C.capdb
+	mu       sync.Mutex
+	db       *C.capdb
+	beginSQL string
 }
 
 func embeddedErrmsg(db *C.capdb) string {
@@ -129,7 +225,7 @@ func (c *embeddedConn) PrepareContext(ctx context.Context, query string) (driver
 func (c *embeddedConn) Begin() (driver.Tx, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err := c.execLocked("BEGIN"); err != nil {
+	if err := c.execLocked(c.beginSQL); err != nil {
 		return nil, err
 	}
 	return &embeddedTx{c: c}, nil
