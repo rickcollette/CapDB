@@ -16,7 +16,7 @@
 
 ---
 
-**CapDB 3.7.1** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
+**CapDB 3.7.2** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
 
 Standard SQL, portable database files, and a production-focused stack: **connection pool**, **network server**, **volume store**, and **WAL replication**.
 

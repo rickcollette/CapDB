@@ -62,11 +62,23 @@ run_shell() {
   fi
 }
 
+files_match() {
+  # UBI9 and other minimal release images do not install diffutils.
+  local a b
+  a="$(cat "$1"; printf x)"
+  b="$(cat "$2"; printf x)"
+  [ "$a" = "$b" ]
+}
+
 check_against_expected() {
   local label="$1" raw="$2"
   normalize "$raw" "$work/${label}.out"
-  if ! diff -u "$EXPECT" "$work/${label}.out"; then
+  if ! files_match "$EXPECT" "$work/${label}.out"; then
     echo "error: ${label} SQL output does not match tests/sql/basic.expected" >&2
+    echo "--- expected ---" >&2
+    cat "$EXPECT" >&2
+    echo "--- actual ---" >&2
+    cat "$work/${label}.out" >&2
     exit 1
   fi
   echo ">> ${label} SQL smoke ok"

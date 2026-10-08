@@ -7,7 +7,7 @@ place to record compatibility evidence.
 | Field | Current Entry |
 |-------|---------------|
 | Upstream SQLite version/source id | SQLite 3.54 lineage, source id tracked by generated `capdb_sourceid()` |
-| CapDB version | 3.7.1 |
+| CapDB version | 3.7.2 |
 | Parser/codegen changes | CapDB CMake/Python codegen passed parity checks |
 | Public API changes | Public `capdb_*`/`CAPDB_*` surface enforced by `tools/check-api-surface.sh` |
 | File-format or WAL behavior changes | CapDB volume store adds sidecar WAL segments without changing core database page format |

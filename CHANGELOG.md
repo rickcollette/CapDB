@@ -6,6 +6,10 @@
 > server, client) are licensed under the MIT License (© 2026 Rick Collette).
 > See [LICENSE](LICENSE) / [LICENSE.md](LICENSE.md).
 
+## CapDB 3.7.2 — Release SQL smoke on minimal images
+
+- The release SQL comparison no longer calls `diff`. UBI9 does not install diffutils, and a missing `diff` was reported as a SQL mismatch.
+
 ## CapDB 3.7.1 — Windows embedded archive and release SQL smoke
 
 ### Security
