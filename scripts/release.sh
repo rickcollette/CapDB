@@ -101,6 +101,27 @@ cp "$ROOT/LICENSE" "$ROOT/LICENSE.md" "$ROOT/README.md" "$STAGE/$BINDINGS/"
 tar -czf "$DIST/$BINDINGS.tar.gz" -C "$STAGE" "$BINDINGS"
 rm -rf "$STAGE"
 
+# CPack names the binary after the kernel and CPU (Linux-x86_64 on every
+# builder). The platform suffix distinguishes the glibc family, matching
+# Capper's release matrix.
+if [ -n "${PLATFORM_SUFFIX:-}" ]; then
+  for f in "$DIST"/capdb-"${VERSION}"-*.tar.gz; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in
+      capdb-"${VERSION}"-src.tar.gz) continue ;;
+    esac
+    mv "$f" "$DIST/capdb-${VERSION}-${PLATFORM_SUFFIX}.tar.gz"
+  done
+fi
+
+(
+  cd "$DIST"
+  for f in *.tar.gz; do
+    [ -f "$f" ] || continue
+    sha256sum "$f" > "$f.sha256"
+  done
+)
+
 echo ">> Auditing artifacts"
 "$ROOT/tools/check-release-artifacts.sh" "$DIST" "$ROOT/VERSION"
 

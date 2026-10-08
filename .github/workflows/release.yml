@@ -5,33 +5,149 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ubuntu24.04
+            image: ubuntu:24.04
+            suffix: ubuntu24.04-glibc2.39-x86_64
+          - target: debian12
+            image: debian:12
+            suffix: debian12-glibc2.36-x86_64
+          - target: rhel9
+            image: registry.access.redhat.com/ubi9/ubi
+            suffix: rhel9-glibc2.34-x86_64
+          - target: rocky-current
+            image: rockylinux/rockylinux:10
+            suffix: rocky10-glibc-detect-x86_64
+          - target: ubuntu18.04
+            image: ubuntu:18.04
+            suffix: ubuntu18.04-glibc2.27-x86_64
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential libssl-dev zlib1g-dev python3 default-jdk-headless
-
-      - name: Build, test, and package
-        run: scripts/release.sh build-release
-
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
+      - name: Checkout CapDB
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
-          name: capdb-release-artifacts
-          path: dist/*.tar.gz
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.sha }}
+
+      - name: Checkout Capper builders
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          repository: rickcollette/CapperVM
+          ref: v1.0.0
+          path: .release/Capper
+          sparse-checkout: |
+            packaging
+          sparse-checkout-cone-mode: true
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          RAW="${TAG#v}"
+          BASE="${RAW%%-beta*}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$BASE" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$BASE" > VERSION
+
+      - name: Build platform release
+        run: |
+          scripts/release-platform.sh \
+            "${{ matrix.target }}" \
+            "${{ steps.ver.outputs.version }}" \
+            "${{ matrix.image }}" \
+            "${{ matrix.suffix }}" \
+            .release/Capper
+
+      - name: Upload platform binary
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: capdb-${{ matrix.target }}
+          path: |
+            dist/${{ matrix.target }}/capdb-${{ steps.ver.outputs.version }}-${{ matrix.suffix }}.tar.gz
+            dist/${{ matrix.target }}/capdb-${{ steps.ver.outputs.version }}-${{ matrix.suffix }}.tar.gz.sha256
           if-no-files-found: error
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+      - name: Upload shared source archives
+        if: matrix.target == 'ubuntu24.04'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          files: dist/*.tar.gz
+          name: capdb-source
+          path: |
+            dist/ubuntu24.04/capdb-${{ steps.ver.outputs.version }}-src.tar.gz
+            dist/ubuntu24.04/capdb-${{ steps.ver.outputs.version }}-src.tar.gz.sha256
+            dist/ubuntu24.04/capdb-amalgamation-${{ steps.ver.outputs.version }}.tar.gz
+            dist/ubuntu24.04/capdb-amalgamation-${{ steps.ver.outputs.version }}.tar.gz.sha256
+            dist/ubuntu24.04/capdb-bindings-${{ steps.ver.outputs.version }}.tar.gz
+            dist/ubuntu24.04/capdb-bindings-${{ steps.ver.outputs.version }}.tar.gz.sha256
+          if-no-files-found: error
+
+  publish:
+    needs: matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          RAW="${TAG#v}"
+          BASE="${RAW%%-beta*}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          path: dist
+          pattern: capdb-*
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: CapDB ${{ steps.ver.outputs.version }}
+          prerelease: ${{ contains(steps.ver.outputs.tag, '-beta') }}
+          body: |
+            CapDB ${{ steps.ver.outputs.version }} built with the Capper release builders.
+
+            Pick the binary archive that matches the target OS / glibc family:
+
+            | Target | Artifact |
+            |--------|----------|
+            | Ubuntu 24.04 x86_64 | `capdb-${{ steps.ver.outputs.version }}-ubuntu24.04-glibc2.39-x86_64.tar.gz` |
+            | Debian 12 x86_64 | `capdb-${{ steps.ver.outputs.version }}-debian12-glibc2.36-x86_64.tar.gz` |
+            | RHEL 9 x86_64 | `capdb-${{ steps.ver.outputs.version }}-rhel9-glibc2.34-x86_64.tar.gz` |
+            | Rocky Linux current x86_64 | `capdb-${{ steps.ver.outputs.version }}-rocky10-glibc-detect-x86_64.tar.gz` |
+            | Ubuntu 18.04 x86_64 | `capdb-${{ steps.ver.outputs.version }}-ubuntu18.04-glibc2.27-x86_64.tar.gz` |
+
+            Source, amalgamation, and language bindings are platform-independent.
+          files: |
+            dist/capdb-${{ steps.ver.outputs.version }}-*.tar.gz
+            dist/capdb-${{ steps.ver.outputs.version }}-*.tar.gz.sha256
+            dist/capdb-amalgamation-${{ steps.ver.outputs.version }}.tar.gz
+            dist/capdb-amalgamation-${{ steps.ver.outputs.version }}.tar.gz.sha256
+            dist/capdb-bindings-${{ steps.ver.outputs.version }}.tar.gz
+            dist/capdb-bindings-${{ steps.ver.outputs.version }}.tar.gz.sha256
+          fail_on_unmatched_files: true
