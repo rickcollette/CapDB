@@ -176,9 +176,11 @@ static void repReplayVolumeWal(capdb_rep_sender *p, capdb_stream *s,
     }
     if( stat(zSeg, &st)!=0 || !S_ISREG(st.st_mode) ) continue;
     if( nSeg>=nAlloc ){
+      WalSeg *aNew;
       nAlloc = nAlloc ? nAlloc*2 : 32;
-      aSeg = (WalSeg*)realloc(aSeg, (size_t)nAlloc*sizeof(WalSeg));
-      if( aSeg==0 ){ closedir(d); return; }
+      aNew = (WalSeg*)realloc(aSeg, (size_t)nAlloc*sizeof(WalSeg));
+      if( aNew==0 ){ free(aSeg); closedir(d); return; }
+      aSeg = aNew;
     }
     slot = &aSeg[nSeg++];
     slot->lsn = lsn;
@@ -321,7 +323,7 @@ static void *repAcceptLoop(void *pArg){
     tlsCfg.bInsecure = p->cfg.bTls ? 0 : 1;
     tlsCfg.pSharedCtx = p->pSslCtx;
     if( capdb_stream_accept(cfd, &tlsCfg, &s) ){
-      close(cfd);
+      /* accept owns cfd and already closed it */
       continue;
     }
     a = (RepServeArg*)malloc(sizeof(*a));

@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <time.h>
 #include <pthread.h>
 #include <openssl/sha.h>
@@ -26,14 +25,20 @@ static AuthFailEntry *gAuthFails = 0;
 static pthread_mutex_t gAuthMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int authConstantTimeEq(const char *a, const char *b){
-  size_t i;
-  size_t la = strlen(a);
-  size_t lb = strlen(b);
-  unsigned char c = la ^ lb;
-  for(i=0; i<la && i<lb; i++){
-    c |= (unsigned char)(a[i] ^ b[i]);
+  size_t i, n, la, lb;
+  unsigned char c;
+  if( a==0 || b==0 ) return 0;
+  la = strlen(a);
+  lb = strlen(b);
+  n = la > lb ? la : lb;
+  c = (unsigned char)(la ^ lb);
+  c |= (unsigned char)((la ^ lb) >> 8);
+  for(i=0; i<n; i++){
+    unsigned char ca = i<la ? (unsigned char)a[i] : 0;
+    unsigned char cb = i<lb ? (unsigned char)b[i] : 0;
+    c |= (unsigned char)(ca ^ cb);
   }
-  return c==0 && la==lb;
+  return c==0;
 }
 
 static void authSha256Hex(const char *z, char out[65]){
@@ -138,6 +143,10 @@ static void authRecordOk(const char *zPeer){
   pthread_mutex_unlock(&gAuthMutex);
 }
 
+int capdb_auth_check_peer(const char *zAuthFile, int method,
+                          const char *zUser, const char *zSecret,
+                          const char *zPeer);
+
 int capdb_auth_check(const char *zAuthFile, int method,
                        const char *zUser, const char *zSecret){
   return capdb_auth_check_peer(zAuthFile, method, zUser, zSecret, 0);
@@ -174,11 +183,16 @@ int capdb_auth_check_peer(const char *zAuthFile, int method,
       zPass = strchr(line, ':');
       if( zPass ){
         *zPass++ = 0;
-        if( zUser && authConstantTimeEq(zTok, zUser)
-         && authSecretMatches(zPass, zSecret) ){
+        /* Always check the secret. Short-circuiting on the username lets a
+        ** peer tell a wrong user from a wrong password by timing. */
+        {
+        int userOk = zUser && authConstantTimeEq(zTok, zUser);
+        int secretOk = authSecretMatches(zPass, zSecret);
+        if( userOk && secretOk ){
           fclose(f);
           authRecordOk(zPeer);
           return 0;
+        }
         }
       }
     }

@@ -201,7 +201,10 @@ static int mVfsOpen(capdb_vfs *pVfs, const char *zName, capdb_file *pFile,
     }
   }
   if( zUri==0 ) zUri = pV->zDefaultUri;
-  if( zUri==0 ) return CAPDB_CANTOPEN;
+  if( zUri==0 ){
+    free(zDup);
+    return CAPDB_CANTOPEN;
+  }
 
   vfsConnLock();
   if( pV->pConn==0 ){

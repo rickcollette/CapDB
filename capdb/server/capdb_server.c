@@ -161,6 +161,9 @@ static void capdbPeer(int fd, char *buf, size_t n){
     struct sockaddr_in6 *s6 = (struct sockaddr_in6*)&ss;
     inet_ntop(AF_INET6, &s6->sin6_addr, host, sizeof(host));
     port = ntohs(s6->sin6_port);
+  }else if( ss.ss_family==AF_UNIX ){
+    snprintf(buf, n, "unix");
+    return;
   }else{
     snprintf(buf, n, "?");
     return;
@@ -1430,6 +1433,101 @@ static int pathEndsWithDbExt(const char *z){
   return 0;
 }
 
+/* Open zRoot and walk every component of the absolute jailed path except the
+** last with O_DIRECTORY|O_NOFOLLOW. Intermediate symlinks cannot redirect the
+** open outside the root: openat refuses to follow them. */
+static int jailedParentFd(const char *zRoot, const char *zAbs,
+                          int *pParent, char *zName, size_t nName){
+  char *zReal;
+  char *zDup;
+  const char *zRel;
+  char *cursor;
+  size_t nRoot;
+  int dfd;
+  if( zRoot==0 || zAbs==0 || pParent==0 || zName==0 || nName==0 ){
+    errno = EINVAL;
+    return -1;
+  }
+  zReal = realpath(zRoot, 0);
+  if( zReal==0 ) return -1;
+  nRoot = strlen(zReal);
+  if( strncmp(zAbs, zReal, nRoot)!=0 || zAbs[nRoot]!='/' ){
+    free(zReal);
+    errno = EPERM;
+    return -1;
+  }
+  zRel = zAbs + nRoot + 1;
+  if( zRel[0]==0 || pathHasDotDot(zRel) ){
+    free(zReal);
+    errno = EPERM;
+    return -1;
+  }
+  zDup = strdup(zRel);
+  if( zDup==0 ){ free(zReal); return -1; }
+  dfd = open(zReal, O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+  free(zReal);
+  if( dfd<0 ){ free(zDup); return -1; }
+  cursor = zDup;
+  for(;;){
+    char *slash = strchr(cursor, '/');
+    if( slash ){
+      int nd;
+      *slash = 0;
+      if( cursor[0]==0 || strcmp(cursor, ".")==0 || strcmp(cursor, "..")==0 ){
+        free(zDup);
+        close(dfd);
+        errno = EPERM;
+        return -1;
+      }
+      nd = openat(dfd, cursor, O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+      close(dfd);
+      if( nd<0 ){ free(zDup); return -1; }
+      dfd = nd;
+      cursor = slash + 1;
+      continue;
+    }
+    if( cursor[0]==0 || strcmp(cursor, ".")==0 || strcmp(cursor, "..")==0
+     || strlen(cursor)>=nName ){
+      free(zDup);
+      close(dfd);
+      errno = EPERM;
+      return -1;
+    }
+    memcpy(zName, cursor, strlen(cursor)+1);
+    free(zDup);
+    *pParent = dfd;
+    return 0;
+  }
+}
+
+static const char *sessionFsRoot(capdb_server *pSrv){
+#if defined(CAPDB_ENABLE_STORE)
+  if( serverUsesVolume(pSrv) ) return pSrv->cfg.zVolumeRoot;
+#endif
+  return pSrv->cfg.zDbRoot;
+}
+
+static int openAllowed(capdb_server *pSrv, const char *zAbs, int flags, mode_t mode){
+  int dfd = -1;
+  int fd;
+  char zName[PATH_MAX];
+  if( jailedParentFd(sessionFsRoot(pSrv), zAbs, &dfd, zName, sizeof(zName)) ) return -1;
+  fd = openat(dfd, zName, flags|O_NOFOLLOW|O_CLOEXEC, mode);
+  close(dfd);
+  return fd;
+}
+
+static int unlinkAllowed(capdb_server *pSrv, const char *zAbs, int syncDir){
+  int dfd = -1;
+  int rc;
+  char zName[PATH_MAX];
+  if( jailedParentFd(sessionFsRoot(pSrv), zAbs, &dfd, zName, sizeof(zName)) ) return -1;
+  rc = unlinkat(dfd, zName, 0);
+  if( rc==0 && syncDir ) (void)fsync(dfd);
+  close(dfd);
+  return rc;
+}
+
 static int vfsSetLock(capdb_server *pSrv, const char *zPath, int eNew){
   return pathRegistrySetLock(pSrv, zPath, eNew);
 }
@@ -1457,15 +1555,15 @@ static int handleVfsOpen(Session *p, capdb_reader *r){
     return 0;
   }
   free(zPath);
-  if( access(zAllowed, F_OK)!=0 ){
+  fd = openAllowed(p->pSrv, zAllowed, flags, 0644);
+  if( fd<0 && errno==ENOENT ){
     if( !pathEndsWithDbExt(zAllowed) ){
       sendError(p, CAPDB_PERM, "create only allowed for .db paths");
       free(zAllowed);
       return 0;
     }
-    flags |= O_CREAT;
+    fd = openAllowed(p->pSrv, zAllowed, flags|O_CREAT, 0644);
   }
-  fd = open(zAllowed, flags, 0644);
   if( fd<0 ){
     sendError(p, CAPDB_CANTOPEN, strerror(errno));
     free(zAllowed);
@@ -1714,22 +1812,10 @@ static int handleVfsDelete(Session *p, capdb_reader *r){
     sendError(p, rc, rc==CAPDB_BUSY ? "path in use" : "delete denied");
     return 0;
   }
-  if( unlink(zAllowed)!=0 && errno!=ENOENT ){
+  if( unlinkAllowed(p->pSrv, zAllowed, syncDir)!=0 && errno!=ENOENT ){
     sendError(p, CAPDB_IOERR_DELETE, strerror(errno));
     free(zAllowed);
     return 0;
-  }
-  if( syncDir ){
-    char *zSlash = strrchr(zAllowed, '/');
-    if( zSlash ){
-      int dfd;
-      *zSlash = 0;
-      dfd = open(zAllowed[0] ? zAllowed : "/", O_RDONLY);
-      if( dfd>=0 ){
-        fsync(dfd);
-        close(dfd);
-      }
-    }
   }
   free(zAllowed);
   vfsSendPong(p);
@@ -2035,7 +2121,7 @@ static void *acceptThread(void *pArg){
     if( pSrv->stop ) break;
     if( capdb_tcp_accept(pSrv->listenFd, &fd) ) continue;
     if( capdb_stream_accept(fd, &tlsCfg, &strm) ){
-      close(fd);
+      /* accept owns fd and already closed it */
       continue;
     }
     /* Enforce a maximum number of concurrent sessions so a flood of
@@ -2094,6 +2180,15 @@ static void *acceptThread(void *pArg){
   return 0;
 }
 
+static void serverStartFail(capdb_server *p){
+  if( p==0 ) return;
+  if( p->listenFd>=0 ) close(p->listenFd);
+  capdb_tls_ctx_free(p->pSslCtx);
+  pthread_mutex_destroy(&p->poolMutex);
+  pthread_mutex_destroy(&p->pathMutex);
+  free(p);
+}
+
 int capdb_server_start(const capdb_server_config *pCfg, capdb_server **pp){
   capdb_server *p;
   if( pCfg==0 || pp==0 ) return -1;
@@ -2101,6 +2196,7 @@ int capdb_server_start(const capdb_server_config *pCfg, capdb_server **pp){
   capdb_initialize();
   p = (capdb_server*)calloc(1, sizeof(*p));
   if( p==0 ) return -1;
+  p->listenFd = -1;
   p->cfg = *pCfg;
   pthread_mutex_init(&p->poolMutex, 0);
   pthread_mutex_init(&p->pathMutex, 0);
@@ -2113,33 +2209,26 @@ int capdb_server_start(const capdb_server_config *pCfg, capdb_server **pp){
     tlsCfg.bServer = 1;
     p->pSslCtx = capdb_tls_server_ctx(&tlsCfg);
     if( p->pSslCtx==0 ){
-      pthread_mutex_destroy(&p->poolMutex);
-      free(p);
+      serverStartFail(p);
       return -1;
     }
   }
   if( capdb_tcp_listen(pCfg->zListen ? pCfg->zListen : CAPDB_DEFAULT_LISTEN,
                          &p->listenFd) ){
-    capdb_tls_ctx_free(p->pSslCtx);
-    pthread_mutex_destroy(&p->poolMutex);
-    free(p);
+    serverStartFail(p);
     return -1;
   }
 #if defined(CAPDB_ENABLE_STORE)
   if( pCfg->zStorage && strcmp(pCfg->zStorage,"volume")==0 && pCfg->zVolumeRoot ){
     if( capdb_store_vfs_register(pCfg->zVolumeRoot, 0) ){
-      capdb_tls_ctx_free(p->pSslCtx);
-      pthread_mutex_destroy(&p->poolMutex);
-      free(p);
+      serverStartFail(p);
       return -1;
     }
     capdb_store_init();
   }
 #if defined(CAPDB_ENABLE_REPLICATION)
   if( serverRepStart(p) ){
-    capdb_tls_ctx_free(p->pSslCtx);
-    pthread_mutex_destroy(&p->poolMutex);
-    free(p);
+    serverStartFail(p);
     return -1;
   }
 #endif

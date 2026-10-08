@@ -133,9 +133,11 @@ int capdb_rep_recovery_replay_dir(capdb_volume *pVol){
     WalSeg *slot;
     if( sscanf(e->d_name, "%08llu.wal", &lsn)!=1 ) continue;
     if( nSeg>=nAlloc ){
+      WalSeg *aNew;
       nAlloc = nAlloc ? nAlloc*2 : 32;
-      aSeg = (WalSeg*)realloc(aSeg, (size_t)nAlloc*sizeof(WalSeg));
-      if( aSeg==0 ){ closedir(d); return CAPDB_NOMEM; }
+      aNew = (WalSeg*)realloc(aSeg, (size_t)nAlloc*sizeof(WalSeg));
+      if( aNew==0 ){ free(aSeg); closedir(d); return CAPDB_NOMEM; }
+      aSeg = aNew;
     }
     slot = &aSeg[nSeg++];
     slot->lsn = lsn;

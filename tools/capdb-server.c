@@ -22,7 +22,7 @@ static void handleSignal(int sig){
 static void usage(const char *zProg){
   fprintf(stderr,
     "Usage: %s [options]\n"
-    "  --listen ADDR:PORT   Listen address (default 0.0.0.0:5432)\n"
+    "  --listen SPEC        host:port, [IPv6]:port, or /unix/socket path\n"
     "  --cert FILE          TLS certificate PEM\n"
     "  --key FILE           TLS private key PEM\n"
     "  --ca FILE            Client CA bundle (optional)\n"

@@ -1,5 +1,7 @@
+# CMake writes compile_commands.json in the build tree and symlinks it here.
+# `build/` in this checkout is not that database.
 CompileFlags:
-  CompilationDatabase: build
+  CompilationDatabase: .
 
 ---
 If:

@@ -502,6 +502,37 @@ if(CAPDB_ENABLE_NETWORK)
       target_compile_definitions(capdb_jni PRIVATE ${CAPDB_COMPILE_DEFS})
       capdb_target_warnings(capdb_jni)
       target_link_libraries(capdb_jni PUBLIC capdb_client)
+      # The JVM is not linked with the sanitizer runtime. Loading an
+      # instrumented libcapdb_jni.so aborts unless libasan (and libubsan,
+      # when UBSan is on) is already first via LD_PRELOAD.
+      set(_capdb_jni_preload "")
+      if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(_capdb_san_flags "${CMAKE_C_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS} $ENV{CFLAGS} $ENV{LDFLAGS}")
+        set(_capdb_preload_libs "")
+        if(_capdb_san_flags MATCHES "-fsanitize=[^ ]*address")
+          execute_process(
+            COMMAND ${CMAKE_C_COMPILER} -print-file-name=libasan.so
+            OUTPUT_VARIABLE _capdb_libasan
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+          if(_capdb_libasan MATCHES "^/")
+            list(APPEND _capdb_preload_libs "${_capdb_libasan}")
+          endif()
+        endif()
+        if(_capdb_san_flags MATCHES "-fsanitize=[^ ]*undefined")
+          execute_process(
+            COMMAND ${CMAKE_C_COMPILER} -print-file-name=libubsan.so
+            OUTPUT_VARIABLE _capdb_libubsan
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+          if(_capdb_libubsan MATCHES "^/")
+            list(APPEND _capdb_preload_libs "${_capdb_libubsan}")
+          endif()
+        endif()
+        if(_capdb_preload_libs)
+          list(JOIN _capdb_preload_libs ":" _capdb_jni_preload)
+        endif()
+      endif()
       if(Java_JAVAC_EXECUTABLE)
         add_test(NAME java_jni_wrapper_compile
           COMMAND ${Java_JAVAC_EXECUTABLE}
@@ -514,9 +545,17 @@ if(CAPDB_ENABLE_NETWORK)
               -d "${CMAKE_CURRENT_BINARY_DIR}/java-classes"
               "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/org/capdb/jni/wrapper1/Capdb.java"
               "${CMAKE_CURRENT_SOURCE_DIR}/tests/capdb/java/JniLoadSmoke.java")
+        set(_capdb_jni_run_prefix
+          ${CMAKE_COMMAND} -E env
+            "LD_LIBRARY_PATH=$<TARGET_FILE_DIR:capdb_jni>:$ENV{LD_LIBRARY_PATH}")
+        if(_capdb_jni_preload)
+          list(APPEND _capdb_jni_run_prefix
+            "CAPDB_JNI_SANITIZER_PRELOAD=${_capdb_jni_preload}"
+            /bin/sh
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/capdb/java/run-jni-load-smoke.sh")
+        endif()
         add_test(NAME java_jni_runtime_load_run
-          COMMAND ${CMAKE_COMMAND} -E env
-            LD_LIBRARY_PATH=$<TARGET_FILE_DIR:capdb_jni>:$ENV{LD_LIBRARY_PATH}
+          COMMAND ${_capdb_jni_run_prefix}
             ${Java_JAVA_EXECUTABLE}
               -cp "${CMAKE_CURRENT_BINARY_DIR}/java-classes"
               org.capdb.jni.wrapper1.JniLoadSmoke)
@@ -545,7 +584,9 @@ if(CAPDB_ENABLE_NETWORK)
 
   # IDE/clangd: capdb_server.c is amalgamated into libcapdb; this object target
   # exists only to populate compile_commands.json for the server sources.
-  add_library(capdb_server_ide OBJECT EXCLUDE_FROM_ALL capdb/server/capdb_server.c)
+  add_library(capdb_server_ide OBJECT EXCLUDE_FROM_ALL
+    capdb/server/capdb_server.c
+    capdb/server/capdb_auth.c)
   target_include_directories(capdb_server_ide PRIVATE
     "${CAPDB_ROOT}"
     "${CAPDB_GEN_DIR}"
@@ -688,6 +729,9 @@ if(CAPDB_BUILD_TESTS)
     add_test(NAME capdbtest_smoke
       COMMAND ${_capdb_test_env} $<TARGET_FILE:capsuite> --filter capdb-1-loopback)
     set_tests_properties(capdbtest_smoke PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
+    add_test(NAME capdb_net_uri_misuse
+      COMMAND $<TARGET_FILE:capdb_nettest> uri-misuse)
+    set_tests_properties(capdb_net_uri_misuse PROPERTIES TIMEOUT 30)
     set(_capdb_net_filters
       capdb-1-loopback
       capdb-2-auth-fail
@@ -744,7 +788,10 @@ if(CAPDB_BUILD_TESTS)
     COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/release.sh"
       "${CMAKE_CURRENT_BINARY_DIR}/release-smoke"
       --skip-tests)
-  set_tests_properties(capdb_release_artifact_smoke PROPERTIES TIMEOUT 240)
+  # release.sh configures a fresh Release tree. That rebuild is a few minutes
+  # on a small CI runner; 240s was timing out after the sanitizer job's
+  # instrumented compile (sanitizer flags are stripped inside the script).
+  set_tests_properties(capdb_release_artifact_smoke PROPERTIES TIMEOUT 600)
 
   add_test(NAME capdb_upstream_sync_check
     COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/upstream-sync-check.sh"
@@ -846,8 +893,10 @@ set(CPACK_PACKAGE_FILE_NAME
 set(CPACK_GENERATOR "TGZ")
 set(CPACK_SOURCE_GENERATOR "TGZ")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "capdb-${PROJECT_VERSION}-src")
+# compile_commands.json is a local symlink into the build tree. Shipping it
+# would publish that machine's paths.
 set(CPACK_SOURCE_IGNORE_FILES
-  "/build[^/]*/;/dist/;/legacy/;/tests/archive/;/\\\\.git/;\\\\.o$;\\\\.a$"
+  "/build[^/]*/;/dist/;/legacy/;/tests/archive/;/\\\\.git/;/\\\\.cursor/;compile_commands\\\\.json;\\\\.o$;\\\\.a$"
 )
 include(CPack)
 

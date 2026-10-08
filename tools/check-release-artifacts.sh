@@ -25,4 +25,18 @@ grep -q "/rust/" "$BIND_LIST"
 grep -q "/python/" "$BIND_LIST"
 grep -q "/java/" "$BIND_LIST"
 
+# A packaged tree must not name or embed the machine that built it.
+if [ -n "${HOME:-}" ]; then
+  for arc in "$DIST"/*.tar.gz; do
+    if tar -tzf "$arc" | grep -F -q -- "$HOME"; then
+      echo "release archive names a build-machine home path: $(basename "$arc")" >&2
+      exit 1
+    fi
+    if tar -xOzf "$arc" | grep -a -F -q -- "$HOME"; then
+      echo "release archive contains a build-machine home path: $(basename "$arc")" >&2
+      exit 1
+    fi
+  done
+fi
+
 echo "capdb release artifact audit ok"

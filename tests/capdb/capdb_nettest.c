@@ -626,6 +626,24 @@ static int test_shutdown_idle(void){
   return 1;
 }
 
+static int test_uri_misuse(void){
+  capdb_conn *p = (capdb_conn*)1;
+  int rc = capdb_net_connect("capdb:///?ca=secret&token=sekrit", &p);
+  if( rc==0 || p!=0 ){
+    fprintf(stderr, "malformed uri leaked a connection rc=%d\n", rc);
+    capdb_net_close(p);
+    return 1;
+  }
+  p = (capdb_conn*)1;
+  rc = capdb_net_connect("not-a-capdb-uri", &p);
+  if( rc==0 || p!=0 ){
+    fprintf(stderr, "non-uri leaked a connection rc=%d\n", rc);
+    capdb_net_close(p);
+    return 1;
+  }
+  return 0;
+}
+
 int main(int argc, char **argv){
   const char *zTest, *zUri;
   setvbuf(stderr, 0, _IONBF, 0);
@@ -638,6 +656,7 @@ int main(int argc, char **argv){
   zUri = argc>=3 ? argv[2] : "";
   fprintf(stderr, "capdb_nettest: %s\n", zTest);
   fflush(stderr);
+  if( strcmp(zTest,"uri-misuse")==0 ) return test_uri_misuse() ? 1 : 0;
   if( strcmp(zTest,"shutdown-idle")==0 ) return test_shutdown_idle() ? 1 : 0;
   if( strcmp(zTest,"session-reuse")==0 ) return test_session_reuse() ? 1 : 0;
   if( zUri[0]==0 ){

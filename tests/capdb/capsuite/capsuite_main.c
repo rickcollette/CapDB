@@ -111,7 +111,7 @@ int capsuite_run_all(void){
   for(i=0; i<g_nTests; i++){
     const char *zName = g_aTests[i].zName;
     struct timespec t0, t1;
-    double elapsedMs;
+    double elapsedMs = 0.0;
     if( g_capsuite_filter && strstr(zName, g_capsuite_filter)==0 ) continue;
     g_capsuite_runs++;
     if( capsuite_verbose() ) clock_gettime(CLOCK_MONOTONIC, &t0);

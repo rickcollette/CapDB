@@ -318,7 +318,10 @@ static int uriParse(const char *zUri, UriParams *u){
       }
     }
   }
-  if( u->zHost==0 || u->zPath==0 ) return -1;
+  if( u->zHost==0 || u->zPath==0 ){
+    uriFree(u);
+    return -1;
+  }
   return 0;
 }
 
@@ -424,7 +427,6 @@ int capdb_net_connect(const char *zUri, capdb_conn **pp){
     while( entry && *entry && p->nReadStream<CAPDB_MAX_REPLICA_STREAMS ){
       const char *comma = strchr(entry, ',');
       char buf[256];
-      const char *colon;
       size_t n = comma ? (size_t)(comma-entry) : strlen(entry);
       int repPort = u.port;
       capdb_stream *rep = 0;
@@ -439,14 +441,31 @@ int capdb_net_connect(const char *zUri, capdb_conn **pp){
       }
       memcpy(buf, entry, n);
       buf[n] = 0;
-      colon = strrchr(buf, ':');
-      if( colon ){
-        size_t off = (size_t)(colon - buf);
-        buf[off] = 0;
-        snprintf(zRepHost, sizeof(zRepHost), "%s", buf);
-        repPort = atoi(buf + off + 1);
+      /* host, host:port, or [ipv6]:port. A bare name is that host, not the
+      ** primary. More than one unbracketed colon is an IPv6 address. */
+      if( buf[0]=='[' ){
+        char *br = strchr(buf, ']');
+        if( br==0 || (br[1]!=0 && br[1]!=':') ){
+          entry = comma ? comma+1 : 0;
+          continue;
+        }
+        *br = 0;
+        snprintf(zRepHost, sizeof(zRepHost), "%s", buf+1);
+        if( br[1]==':' ) repPort = atoi(br+2);
       }else{
-        snprintf(zRepHost, sizeof(zRepHost), "%s", u.zHost);
+        char *c1 = strchr(buf, ':');
+        char *c2 = c1 ? strchr(c1+1, ':') : 0;
+        if( c1 && c2==0 ){
+          *c1 = 0;
+          snprintf(zRepHost, sizeof(zRepHost), "%s", buf);
+          repPort = atoi(c1+1);
+        }else{
+          snprintf(zRepHost, sizeof(zRepHost), "%s", buf);
+        }
+      }
+      if( zRepHost[0]==0 || repPort<1 || repPort>65535 ){
+        entry = comma ? comma+1 : 0;
+        continue;
       }
       memset(&tls, 0, sizeof(tls));
       tls.zCaFile = u.zCa;
@@ -1201,12 +1220,15 @@ const unsigned char *capdb_net_column_text(capdb_net_stmt *st, int i){
   if( capdb_reader_u8(&r, &t) || t!=CAPDB_VAL_TEXT ) return (const unsigned char*)"";
   if( capdb_reader_u32(&r, &n) || !capdb_reader_bytes(&r, (int)n) )
     return (const unsigned char*)"";
+  /* n is bounded by the frame, but reject a length that cannot grow a buffer. */
+  if( n > (unsigned)0x7ffffffe ) return (const unsigned char*)"";
   if( (int)n+1 > nColTextCap ){
     unsigned char *zNew = (unsigned char*)realloc(zColText, (size_t)n+1);
     if( zNew==0 ) return (const unsigned char*)"";
     zColText = zNew;
     nColTextCap = (int)n+1;
   }
+  if( zColText==0 ) return (const unsigned char*)"";
   memcpy(zColText, r.a + r.i, n);
   zColText[n] = 0;
   return zColText;

@@ -23,8 +23,9 @@ or
 .BR libcapdb_client .
 .SH OPTIONS
 .TP
-.B \-\-listen \fIADDR:PORT\fR
-Address and port to bind. Default:
+.B \-\-listen \fISPEC\fR
+Listen address. \fISPEC\fR is \fIhost:port\fR, \fI[IPv6]:port\fR, or an
+absolute filesystem path for a local Unix socket (mode 0600). Default:
 .BR 0.0.0.0:5432 .
 .TP
 .B \-\-cert \fIFILE\fR

@@ -7,6 +7,7 @@
 #include "capdb.h"
 #include <jni.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,14 +18,23 @@ JNIEXPORT jlong JNICALL Java_org_capdb_jni_wrapper1_Capdb_connectRemoteNative(
   capdb_conn *p = 0;
   int rc;
   (void)cls;
+  if( jUri==0 ){
+    (*env)->ThrowNew(env, (*env)->FindClass(env, "java/sql/SQLException"),
+                     "capdb uri is null");
+    return 0;
+  }
   zUri = (*env)->GetStringUTFChars(env, jUri, 0);
   if( zUri==0 ) return 0;
   rc = capdb_net_connect(zUri, &p);
   (*env)->ReleaseStringUTFChars(env, jUri, zUri);
   if( rc!=CAPDB_NET_OK ){
+    char zCopy[256];
     const char *zMsg = capdb_net_errmsg(p);
-    if( zMsg==0 || zMsg[0]==0 ) zMsg = "capdb remote connect failed";
-    (*env)->ThrowNew(env, (*env)->FindClass(env, "java/sql/SQLException"), zMsg);
+    zCopy[0] = 0;
+    if( zMsg && zMsg[0] ) snprintf(zCopy, sizeof(zCopy), "%s", zMsg);
+    if( p ) capdb_net_close(p);
+    (*env)->ThrowNew(env, (*env)->FindClass(env, "java/sql/SQLException"),
+                     zCopy[0] ? zCopy : "capdb remote connect failed");
     return 0;
   }
   return (jlong)(intptr_t)p;

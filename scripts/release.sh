@@ -9,6 +9,35 @@
 # Usage: scripts/release.sh [build-dir] [--skip-tests]
 set -euo pipefail
 
+# A release tarball must be a normal Release build. Parent CI jobs (notably
+# Capper's ASan+UBSan ctest) export -fsanitize=* in CFLAGS/LDFLAGS. Inheriting
+# those flags instruments the package, links it to libasan, and makes this
+# second full rebuild slow enough to time out the artifact smoke.
+strip_sanitizer_flags() {
+  local out="" f
+  for f in $1; do
+    case "$f" in
+      -fsanitize=*|-fno-sanitize=*|-fsanitize-recover=*|-fno-omit-frame-pointer)
+        ;;
+      *)
+        out="${out:+$out }$f"
+        ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+for _var in CFLAGS CXXFLAGS LDFLAGS; do
+  _val="${!_var:-}"
+  if [ -n "$_val" ]; then
+    _stripped="$(strip_sanitizer_flags "$_val")"
+    if [ "$_stripped" != "$_val" ]; then
+      echo ">> Dropping sanitizer flags from $_var for the release build"
+      export "${_var}=${_stripped}"
+    fi
+  fi
+done
+unset _var _val _stripped
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="${1:-$ROOT/build}"
 SKIP_TESTS=0

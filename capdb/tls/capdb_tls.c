@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/stat.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -58,7 +60,10 @@ static SSL_CTX *tlsPickCtx(const capdb_tls_config *pCfg){
 static SSL_CTX *capdb_tls_ctx(const capdb_tls_config *pCfg){
   const SSL_METHOD *method;
   SSL_CTX *ctx;
-  if( pCfg->bInsecure ) return 0;
+  /* A missing config is not "insecure plaintext". Callers that want plaintext
+  ** set bInsecure. A TLS server without a certificate cannot authenticate. */
+  if( pCfg==0 || pCfg->bInsecure ) return 0;
+  if( pCfg->bServer && (pCfg->zCertFile==0 || pCfg->zKeyFile==0) ) return 0;
   method = pCfg->bServer ? TLS_server_method() : TLS_client_method();
   ctx = SSL_CTX_new(method);
   if( ctx==0 ) return 0;
@@ -145,6 +150,15 @@ static int tcpConnect(const char *zHost, int port, int timeoutMs){
   return fd;
 }
 
+static int parseListenPort(const char *zPort){
+  char *end = 0;
+  long port;
+  if( zPort==0 || zPort[0]==0 ) return -1;
+  port = strtol(zPort, &end, 10);
+  if( end==zPort || *end!=0 || port<1 || port>65535 ) return -1;
+  return (int)port;
+}
+
 int capdb_tcp_listen(const char *zListen, int *pFd){
   char host[256];
   char portbuf[16];
@@ -154,17 +168,53 @@ int capdb_tcp_listen(const char *zListen, int *pFd){
   int fd = -1;
   int yes = 1;
 
+  if( zListen==0 || zListen[0]==0 ) return -1;
   if( zListen[0]=='/' ){
-    /* Unix socket not implemented in phase 1 */
-    return -1;
+    struct sockaddr_un un;
+    struct stat st;
+    size_t n = strlen(zListen);
+    if( n>=sizeof(un.sun_path) ) return -1;
+    if( stat(zListen, &st)==0 ){
+      /* Restart replaces a leftover socket. Never unlink a regular file. */
+      if( !S_ISSOCK(st.st_mode) ) return -1;
+      if( unlink(zListen)!=0 ) return -1;
+    }else if( errno!=ENOENT ){
+      return -1;
+    }
+    fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if( fd<0 ) return -1;
+    memset(&un, 0, sizeof(un));
+    un.sun_family = AF_UNIX;
+    memcpy(un.sun_path, zListen, n+1);
+    if( bind(fd, (struct sockaddr*)&un, sizeof(un))!=0
+     || listen(fd, 64)!=0
+     || chmod(zListen, 0600)!=0 ){
+      close(fd);
+      unlink(zListen);
+      return -1;
+    }
+    *pFd = fd;
+    return 0;
   }
-  if( strchr(zListen, ':') ){
-    const char *colon = strrchr(zListen, ':');
+  if( zListen[0]=='[' ){
+    const char *br = strchr(zListen, ']');
+    size_t nHost;
+    if( br==0 || br[1]!=':' ) return -1;
+    nHost = (size_t)(br - (zListen+1));
+    if( nHost>=sizeof(host) ) return -1;
+    if( nHost>0 ) memcpy(host, zListen+1, nHost);
+    host[nHost] = 0;
+    port = parseListenPort(br+2);
+    if( port<0 ) return -1;
+    snprintf(portbuf, sizeof(portbuf), "%d", port);
+  }else if( strchr(zListen, ':') && strchr(zListen, ':')==strrchr(zListen, ':') ){
+    const char *colon = strchr(zListen, ':');
     size_t nHost = (size_t)(colon - zListen);
     if( nHost >= sizeof(host) ) return -1;
-    memcpy(host, zListen, nHost);
+    if( nHost>0 ) memcpy(host, zListen, nHost);
     host[nHost] = 0;
-    port = atoi(colon+1);
+    port = parseListenPort(colon+1);
+    if( port<0 ) return -1;
     snprintf(portbuf, sizeof(portbuf), "%d", port);
   }else{
     snprintf(host, sizeof(host), "%s", zListen);
@@ -252,8 +302,10 @@ int capdb_stream_accept(int fd, const capdb_tls_config *pCfg,
                            capdb_stream **pp){
   capdb_stream *s;
   *pp = 0;
+  /* This function takes ownership of fd. Every failure path closes it, so
+  ** callers must not close fd again after a non-zero return. */
   s = (capdb_stream*)calloc(1, sizeof(*s));
-  if( s==0 ) return -1;
+  if( s==0 ){ close(fd); return -1; }
   s->fd = fd;
   s->bInsecure = pCfg && pCfg->bInsecure;
   if( !s->bInsecure ){
@@ -261,10 +313,10 @@ int capdb_stream_accept(int fd, const capdb_tls_config *pCfg,
     int owned = (pCfg==0 || pCfg->pSharedCtx==0);
     struct timeval tv;
     int timeoutMs = CAPDB_HANDSHAKE_TIMEOUT_MS;
-    if( ctx==0 ){ free(s); return -1; }
+    if( ctx==0 ){ capdb_stream_close(s); return -1; }
     s->ssl = SSL_new(ctx);
     if( owned ) SSL_CTX_free(ctx);
-    if( s->ssl==0 ){ free(s); return -1; }
+    if( s->ssl==0 ){ capdb_stream_close(s); return -1; }
     SSL_set_fd(s->ssl, fd);
     tv.tv_sec = timeoutMs/1000;
     tv.tv_usec = (timeoutMs%1000)*1000;
