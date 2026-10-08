@@ -1,179 +1,99 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-label="CapDB architecture">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0a0f1a"/>
-      <stop offset="45%" stop-color="#111827"/>
-      <stop offset="100%" stop-color="#0c1528"/>
-    </linearGradient>
-    <linearGradient id="steel" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#4a5d73"/>
-      <stop offset="100%" stop-color="#243041"/>
-    </linearGradient>
-    <linearGradient id="copper" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#7a4f28"/>
-      <stop offset="35%" stop-color="#d4a574"/>
-      <stop offset="65%" stop-color="#e8c9a0"/>
-      <stop offset="100%" stop-color="#7a4f28"/>
-    </linearGradient>
-    <linearGradient id="cyanGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#67e8f9"/>
-      <stop offset="100%" stop-color="#0891b2"/>
-    </linearGradient>
-    <linearGradient id="amberGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#fbbf24"/>
-      <stop offset="100%" stop-color="#ea580c"/>
-    </linearGradient>
-    <linearGradient id="violetGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#6d28d9"/>
-    </linearGradient>
-    <radialGradient id="portGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#67e8f9" stop-opacity="1"/>
-      <stop offset="70%" stop-color="#22d3ee" stop-opacity="0.5"/>
-      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
-    </radialGradient>
-    <filter id="glowCyan" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="5" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glowViolet" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.55"/>
-    </filter>
-    <marker id="arrowCyan" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#67e8f9"/>
-    </marker>
-    <marker id="arrowViolet" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M0,0 L12,6 L0,12 Z" fill="#c4b5fd"/>
-    </marker>
-    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
-      <path d="M28 0H0V28" fill="none" stroke="#1e293b" stroke-width="0.5"/>
-    </pattern>
-    <symbol id="gear" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="4" fill="none" stroke="#d4a574" stroke-width="1.5"/>
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1" stroke="#d4a574" stroke-width="1.5" stroke-linecap="round"/>
-    </symbol>
-  </defs>
-
-  <rect width="960" height="540" fill="url(#bg)"/>
-  <rect width="960" height="540" fill="url(#grid)" opacity="0.28"/>
-
-  <!-- corner brackets -->
-  <path d="M18 18 H42 V28" fill="none" stroke="url(#copper)" stroke-width="2"/>
-  <path d="M942 18 H918 V28" fill="none" stroke="url(#copper)" stroke-width="2"/>
-  <path d="M18 522 H42 V512" fill="none" stroke="url(#copper)" stroke-width="2"/>
-  <path d="M942 522 H918 V512" fill="none" stroke="url(#copper)" stroke-width="2"/>
-
-  <!-- header -->
-  <rect x="28" y="22" width="904" height="54" rx="12" fill="#121a2c" stroke="url(#copper)" stroke-width="2" filter="url(#softShadow)"/>
-  <use href="#gear" x="44" y="37" width="22" height="22" opacity="0.85"/>
-  <circle cx="82" cy="49" r="8" fill="url(#portGlow)" filter="url(#glowCyan)"/>
-  <circle cx="82" cy="49" r="3.5" fill="#ecfeff"/>
-  <circle cx="104" cy="49" r="5" fill="#f59e0b" opacity="0.95"/>
-  <text x="122" y="54" fill="#f1f5f9" font-family="ui-sans-serif, system-ui, sans-serif" font-size="19" font-weight="800" letter-spacing="0.12em">CAPDB</text>
-  <text x="218" y="54" fill="#64748b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="500">architecture</text>
-  <text x="700" y="54" fill="#22d3ee" font-family="ui-monospace, monospace" font-size="12" font-weight="600">capdb://</text>
-  <text x="790" y="54" fill="#94a3b8" font-family="ui-monospace, monospace" font-size="12">TLS · WAL · HA</text>
-
-  <!-- CLIENTS -->
-  <g filter="url(#softShadow)">
-    <rect x="28" y="96" width="904" height="96" rx="14" fill="#0d1424" stroke="#334155" stroke-width="1.5"/>
-    <line x1="48" y1="118" x2="120" y2="118" stroke="#22d3ee" stroke-width="2"/>
-    <text x="128" y="122" fill="#67e8f9" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="800" letter-spacing="0.22em">CLIENTS</text>
-
-    <rect x="48" y="136" width="252" height="46" rx="23" fill="url(#steel)" stroke="#22d3ee" stroke-width="2"/>
-    <circle cx="74" cy="159" r="8" fill="url(#portGlow)" filter="url(#glowCyan)"/>
-    <circle cx="74" cy="159" r="3" fill="#ecfeff"/>
-    <text x="92" y="164" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="700">capdb CLI</text>
-
-    <rect x="320" y="136" width="284" height="46" rx="23" fill="url(#steel)" stroke="#38bdf8" stroke-width="2"/>
-    <circle cx="346" cy="159" r="8" fill="url(#portGlow)" filter="url(#glowCyan)"/>
-    <circle cx="346" cy="159" r="3" fill="#ecfeff"/>
-    <text x="364" y="164" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="700">libcapdb_client</text>
-
-    <rect x="624" y="136" width="288" height="46" rx="23" fill="url(#steel)" stroke="url(#amberGlow)" stroke-width="2"/>
-    <circle cx="650" cy="159" r="8" fill="#f59e0b" opacity="0.35"/>
-    <circle cx="650" cy="159" r="3.5" fill="#fde68a"/>
-    <text x="668" y="164" fill="#f8fafc" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="700">capdbvfs · remote pages</text>
-  </g>
-
-  <!-- client drops -->
-  <path d="M174 202 C174 218 174 228 174 234" stroke="#22d3ee" stroke-width="2.5" fill="none" marker-end="url(#arrowCyan)" filter="url(#glowCyan)"/>
-  <path d="M462 202 C462 218 462 228 462 234" stroke="#38bdf8" stroke-width="2.5" fill="none" marker-end="url(#arrowCyan)"/>
-  <path d="M768 202 C768 218 768 228 768 234" stroke="#f59e0b" stroke-width="2.5" fill="none" marker-end="url(#arrowCyan)"/>
-
-  <!-- PRIMARY -->
-  <g filter="url(#softShadow)">
-    <rect x="28" y="244" width="556" height="272" rx="16" fill="#0a1020" stroke="url(#copper)" stroke-width="2.5"/>
-    <!-- rivets -->
-    <circle cx="44" cy="260" r="3" fill="#d4a574"/><circle cx="568" cy="260" r="3" fill="#d4a574"/>
-    <circle cx="44" cy="500" r="3" fill="#d4a574"/><circle cx="568" cy="500" r="3" fill="#d4a574"/>
-    <rect x="28" y="244" width="556" height="36" rx="16" fill="#151f33"/>
-    <rect x="28" y="264" width="556" height="16" fill="#151f33"/>
-    <text x="48" y="268" fill="#e8c9a0" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="800" letter-spacing="0.18em">PRIMARY</text>
-    <text x="138" y="268" fill="#64748b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">capdb-server</text>
-
-    <rect x="52" y="300" width="154" height="60" rx="10" fill="#182235" stroke="#818cf8" stroke-width="2"/>
-    <text x="70" y="324" fill="#a5b4fc" font-family="ui-monospace, monospace" font-size="10" font-weight="700">TLS</text>
-    <text x="70" y="344" fill="#f1f5f9" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700">capdb protocol</text>
-
-    <rect x="228" y="300" width="136" height="60" rx="10" fill="#102a2a" stroke="#2dd4bf" stroke-width="2"/>
-    <text x="246" y="336" fill="#5eead4" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="800">capdb_pool</text>
-
-    <rect x="386" y="292" width="178" height="76" rx="12" fill="#1a1508" stroke="url(#amberGlow)" stroke-width="2.5"/>
-    <text x="404" y="318" fill="#fbbf24" font-family="ui-monospace, monospace" font-size="10" font-weight="800">VOLUME STORE</text>
-    <text x="404" y="342" fill="#fef9c3" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="800">capdb_store</text>
-    <text x="404" y="358" fill="#a8a29e" font-family="ui-monospace, monospace" font-size="10">capdbstorevfs</text>
-
-    <rect x="140" y="396" width="280" height="60" rx="12" fill="#1a0f33" stroke="url(#violetGlow)" stroke-width="2.5"/>
-    <text x="162" y="432" fill="#ede9fe" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="800">capdb_replication</text>
-    <circle cx="396" cy="426" r="7" fill="url(#portGlow)" filter="url(#glowViolet)"/>
-
-    <path d="M206 330 L224 330" stroke="#475569" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
-    <path d="M364 330 L382 330" stroke="#475569" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
-    <path d="M475 368 L310 396" stroke="#475569" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
-  </g>
-
-  <!-- WAL stream arc -->
-  <path d="M584 426 C640 426 652 360 696 348" fill="none" stroke="url(#violetGlow)" stroke-width="5" stroke-dasharray="12 7" marker-end="url(#arrowViolet)" filter="url(#glowViolet)"/>
-  <rect x="592" y="400" width="116" height="28" rx="14" fill="#2e1065" stroke="#a78bfa" stroke-width="1.5"/>
-  <text x="608" y="419" fill="#f5f3ff" font-family="ui-monospace, monospace" font-size="11" font-weight="800">WAL stream</text>
-
-  <!-- REPLICA -->
-  <g filter="url(#softShadow)">
-    <rect x="608" y="244" width="324" height="272" rx="16" fill="#090d18" stroke="#7c3aed" stroke-width="2" stroke-dasharray="8 5"/>
-    <rect x="608" y="244" width="324" height="36" rx="16" fill="#1a1033"/>
-    <rect x="608" y="264" width="324" height="16" fill="#1a1033"/>
-    <text x="628" y="268" fill="#c4b5fd" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="800" letter-spacing="0.18em">REPLICA</text>
-    <text x="708" y="268" fill="#64748b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">capdb-server · read-only</text>
-
-    <rect x="636" y="300" width="154" height="60" rx="10" fill="#182235" stroke="#818cf8" stroke-width="2"/>
-    <text x="654" y="324" fill="#a5b4fc" font-family="ui-monospace, monospace" font-size="10" font-weight="700">TLS</text>
-    <text x="654" y="344" fill="#f1f5f9" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700">capdb protocol</text>
-
-    <rect x="636" y="378" width="136" height="60" rx="10" fill="#102a2a" stroke="#2dd4bf" stroke-width="2"/>
-    <text x="654" y="414" fill="#5eead4" font-family="ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="800">capdb_pool</text>
-
-    <rect x="792" y="370" width="124" height="76" rx="12" fill="#1a1033" stroke="#a78bfa" stroke-width="2.5"/>
-    <text x="804" y="396" fill="#c4b5fd" font-family="ui-monospace, monospace" font-size="10" font-weight="800">SYNCED</text>
-    <text x="804" y="420" fill="#ede9fe" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="800">capdb_store</text>
-
-    <path d="M790 330 L636 378" stroke="#475569" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
-    <path d="M772 408 L788 408" stroke="#475569" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
-  </g>
-
-  <!-- legend bar -->
-  <rect x="28" y="488" width="904" height="36" rx="10" fill="#070b14" stroke="#1e293b" stroke-width="1"/>
-  <circle cx="54" cy="506" r="6" fill="#22d3ee" filter="url(#glowCyan)"/>
-  <text x="68" y="510" fill="#cbd5e1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">wire</text>
-  <circle cx="128" cy="506" r="6" fill="#2dd4bf"/>
-  <text x="142" y="510" fill="#cbd5e1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">pool</text>
-  <circle cx="198" cy="506" r="6" fill="#f59e0b"/>
-  <text x="212" y="510" fill="#cbd5e1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">volume</text>
-  <circle cx="288" cy="506" r="6" fill="#a78bfa"/>
-  <text x="302" y="510" fill="#cbd5e1" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">replication</text>
-  <use href="#gear" x="860" y="494" width="24" height="24" opacity="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1140" viewBox="0 0 1600 1140" role="img" aria-labelledby="title desc"><title id="title">CapDB 3.7 system architecture</title><desc id="desc">Embedded local access, remote SQL through a primary and replica, volume store WAL streaming, and independent non-HA remote VFS access.</desc><defs><marker id="7595b8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7595b8"/></marker><marker id="66cfbd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#66cfbd"/></marker><marker id="eab86b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#eab86b"/></marker></defs><rect width="1600" height="1140" fill="#0a1220"/>
+<text x="64" y="68" fill="#ffffff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="38" font-weight="800" text-anchor="start">CapDB</text>
+<rect x="225" y="41" width="109" height="27" rx="8" fill="#1e3348" stroke="none" stroke-width="0"/>
+<text x="279.5" y="60" fill="#83caff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12" font-weight="650" text-anchor="middle">3.7.0</text>
+<text x="64" y="102" fill="#aabed4" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="400" text-anchor="start">SQL engine · embedded, networked, and primary/replica deployments</text>
+<rect x="48" y="144" width="440" height="500" rx="20" fill="#0e1b2b" stroke="#344861" stroke-width="1.5"/>
+<rect x="508" y="144" width="1044" height="730" rx="20" fill="#0e1b2b" stroke="#344861" stroke-width="1.5"/>
+<text x="76" y="187" fill="#66cfbd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="800" text-anchor="start">01  EMBEDDED MODE</text>
+<text x="536" y="187" fill="#83caff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="800" text-anchor="start">02  NETWORK SQL + VOLUME REPLICATION</text>
+<rect x="76" y="226" width="384" height="85" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="92" y="244" width="4" height="49" rx="2" fill="#66cfbd" stroke="none" stroke-width="0"/>
+<text x="108" y="262" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Local applications</text>
+<text x="108" y="288" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Go / Rust / Python / C / CLI</text>
+<rect x="76" y="370" width="384" height="85" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="92" y="388" width="4" height="49" rx="2" fill="#83caff" stroke="none" stroke-width="0"/>
+<text x="108" y="406" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">libcapdb (in-process)</text>
+<text x="108" y="432" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">capdb_open_v2 · SQL / pager / B-tree</text>
+<rect x="76" y="514" width="384" height="85" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="92" y="532" width="4" height="49" rx="2" fill="#eab86b" stroke="none" stroke-width="0"/>
+<text x="108" y="550" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Local database file</text>
+<text x="108" y="576" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">POSIX VFS · .db / WAL / SHM</text>
+<path d="M268 311 V369" fill="none" stroke="#66cfbd" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#66cfbd)"/>
+<path d="M268 455 V513" fill="none" stroke="#66cfbd" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#66cfbd)"/>
+<text x="76" y="632" fill="#9bb2c9" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="400" text-anchor="start">No server or network required</text>
+<rect x="536" y="225" width="440" height="83" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="552" y="243" width="4" height="47" rx="2" fill="#83caff" stroke="none" stroke-width="0"/>
+<text x="568" y="261" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Remote applications</text>
+<text x="568" y="287" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Go / Rust / Python / C SDK / CLI</text>
+<rect x="1054" y="225" width="470" height="83" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="1070" y="243" width="4" height="47" rx="2" fill="#83caff" stroke="none" stroke-width="0"/>
+<text x="1086" y="261" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">capdb:// client connection</text>
+<text x="1086" y="287" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">TLS + auth · read preference is client-side</text>
+<path d="M976 267 H1053" fill="none" stroke="#7595b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#7595b8)"/>
+<path d="M1289 308 V347 H823 V381" fill="none" stroke="#7595b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#7595b8)"/>
+<rect x="536" y="381" width="485" height="404" rx="17" fill="#122338" stroke="#517797" stroke-width="1.5"/>
+<rect x="553" y="398" width="90" height="27" rx="8" fill="#1e3348" stroke="none" stroke-width="0"/>
+<text x="598.0" y="417" fill="#66cfbd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12" font-weight="650" text-anchor="middle">PRIMARY</text>
+<rect x="554" y="445" width="449" height="76" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="570" y="463" width="4" height="40" rx="2" fill="#66cfbd" stroke="none" stroke-width="0"/>
+<text x="586" y="481" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">capdb-server</text>
+<text x="586" y="507" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">TLS listener · auth · path jail</text>
+<rect x="554" y="541" width="449" height="76" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="570" y="559" width="4" height="40" rx="2" fill="#83caff" stroke="none" stroke-width="0"/>
+<text x="586" y="577" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Connection pool + SQL engine</text>
+<text x="586" y="603" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">capdb_pool · server-side execution</text>
+<rect x="554" y="637" width="449" height="76" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="570" y="655" width="4" height="40" rx="2" fill="#eab86b" stroke="none" stroke-width="0"/>
+<text x="586" y="673" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">capdbstorevfs + capdb_store</text>
+<text x="586" y="699" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Volume manager · durability · LSN</text>
+<path d="M779 521 V540" fill="none" stroke="#7595b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#7595b8)"/>
+<path d="M779 617 V636" fill="none" stroke="#7595b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#7595b8)"/>
+<rect x="554" y="730" width="449" height="39" rx="8" fill="#1e3449" stroke="#34506a" stroke-width="1.5"/>
+<text x="779" y="755" fill="#cfdfed" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="600" text-anchor="middle">manifest · data/main.db · WAL · state</text>
+<path d="M779 713 V729" fill="none" stroke="#eab86b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#eab86b)"/>
+<rect x="1070" y="381" width="454" height="404" rx="17" fill="#122338" stroke="#517797" stroke-width="1.5"/>
+<rect x="1087" y="398" width="90" height="27" rx="8" fill="#1e3348" stroke="none" stroke-width="0"/>
+<text x="1132.0" y="417" fill="#83caff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12" font-weight="650" text-anchor="middle">REPLICA</text>
+<rect x="1088" y="445" width="418" height="76" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="1104" y="463" width="4" height="40" rx="2" fill="#83caff" stroke="none" stroke-width="0"/>
+<text x="1120" y="481" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">capdb-server</text>
+<text x="1120" y="507" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Read-only SQL · auth / path jail</text>
+<rect x="1088" y="541" width="418" height="76" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="1104" y="559" width="4" height="40" rx="2" fill="#83caff" stroke="none" stroke-width="0"/>
+<text x="1120" y="577" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Connection pool + SQL engine</text>
+<text x="1120" y="603" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Read-only enforcement · local queries</text>
+<rect x="1088" y="637" width="418" height="76" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="1104" y="655" width="4" height="40" rx="2" fill="#eab86b" stroke="none" stroke-width="0"/>
+<text x="1120" y="673" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">capdbstorevfs + replica apply</text>
+<text x="1120" y="699" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">WAL replay · checkpoint · generation fence</text>
+<path d="M1297 521 V540" fill="none" stroke="#7595b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#7595b8)"/>
+<path d="M1297 617 V636" fill="none" stroke="#7595b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#7595b8)"/>
+<rect x="1088" y="730" width="418" height="39" rx="8" fill="#1e3449" stroke="#34506a" stroke-width="1.5"/>
+<text x="1297" y="755" fill="#cfdfed" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="600" text-anchor="middle">independent replica volume + WAL</text>
+<path d="M1297 713 V729" fill="none" stroke="#eab86b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#eab86b)"/>
+<path d="M1022 677 H1068" fill="none" stroke="#eab86b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#eab86b)"/>
+<text x="1046" y="654" fill="#eab86b" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="12" font-weight="750" text-anchor="middle">WAL</text>
+<text x="1046" y="698" fill="#eab86b" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="700" text-anchor="middle">→</text>
+<text x="1030" y="818" fill="#eab86b" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="14" font-weight="500" text-anchor="middle">Separate replication listener · framed WAL segments · replica ACK / LSN</text>
+<path d="M1359 308 V368 H1298 V381" fill="none" stroke="#7595b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 6" marker-end="url(#7595b8)"/>
+<text x="1392" y="352" fill="#9ebcdb" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">read-only</text>
+<rect x="48" y="900" width="1504" height="173" rx="18" fill="#101d2b" stroke="#465268" stroke-width="1.5"/>
+<text x="76" y="941" fill="#eab86b" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="800" text-anchor="start">03  ALTERNATIVE: REMOTE VFS (NON-HA)</text>
+<rect x="76" y="961" width="430" height="86" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="92" y="979" width="4" height="50" rx="2" fill="#eab86b" stroke="none" stroke-width="0"/>
+<text x="108" y="997" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Embedded SQL engine on client</text>
+<text x="108" y="1023" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Pager + B-tree stay client-side</text>
+<rect x="633" y="961" width="414" height="86" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="649" y="979" width="4" height="50" rx="2" fill="#eab86b" stroke="none" stroke-width="0"/>
+<text x="665" y="997" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">capdbvfs page I/O over network</text>
+<text x="665" y="1023" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">Remote file access / byte-level operations</text>
+<rect x="1172" y="961" width="352" height="86" rx="14" fill="#111c2e" stroke="#33465d" stroke-width="1.5"/>
+<rect x="1188" y="979" width="4" height="50" rx="2" fill="#eab86b" stroke="none" stroke-width="0"/>
+<text x="1204" y="997" fill="#f0f6fd" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="19" font-weight="700" text-anchor="start">Server-side POSIX files</text>
+<text x="1204" y="1023" fill="#a8bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="start">--db-root · path jail</text>
+<path d="M507 1004 H632" fill="none" stroke="#eab86b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#eab86b)"/>
+<path d="M1048 1004 H1171" fill="none" stroke="#eab86b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"  marker-end="url(#eab86b)"/>
+<text x="64" y="1111" fill="#a6bbcf" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="400" text-anchor="start">HA is single-primary, not active-active. Promotion/failover is operator-managed; clients do not access volume files directly.</text>
+<text x="1530" y="1111" fill="#7895ad" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="13" font-weight="400" text-anchor="end">github.com/rickcollette/CapDB</text>
 </svg>
