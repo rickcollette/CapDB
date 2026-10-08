@@ -23,7 +23,28 @@ trap 'rm -rf "$ctx"' EXIT
 mkdir -p "$ctx/packaging"
 cp "$capper_dir/packaging/Dockerfile.release" "$capper_dir/packaging/install-deps.sh" "$ctx/packaging/"
 
-DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" docker build \
+# Registry and package-mirror failures show up as a fast non-zero exit.
+# Retry before giving up on the platform.
+retry() {
+  local attempt=1
+  local max=3
+  local delay=20
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [ "$attempt" -ge "$max" ]; then
+      echo "error: command failed after ${max} attempts" >&2
+      return 1
+    fi
+    echo ">> attempt ${attempt} failed; retrying in ${delay}s" >&2
+    sleep "$delay"
+    attempt=$((attempt + 1))
+    delay=$((delay * 2))
+  done
+}
+
+DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" retry docker build \
   --build-arg "BASE_IMAGE=${base_image}" \
   -f "$ctx/packaging/Dockerfile.release" \
   -t "$builder" \
@@ -31,7 +52,7 @@ DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" docker build \
 
 rm -rf "$out"
 mkdir -p "$out"
-docker run --rm \
+retry docker run --rm \
   -e "VERSION=${version}" \
   -e "PLATFORM_SUFFIX=${platform_suffix}" \
   -v "$ROOT:/host-src:ro" \
