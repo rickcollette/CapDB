@@ -16,7 +16,7 @@
 
 ---
 
-**CapDB 3.7.0** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
+**CapDB 3.7.1** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
 
 Standard SQL, portable database files, and a production-focused stack: **connection pool**, **network server**, **volume store**, and **WAL replication**.
 
@@ -147,7 +147,7 @@ Built-in hardening includes a path jail that opens and deletes from the canonica
 
 ## Releases
 
-[GitHub Releases](https://github.com/rickcollette/CapDB/releases) publish one binary archive per platform, plus source, amalgamation, and language-binding archives. Binary names follow `capdb-<version>-<os-glibc-arch>.tar.gz` (Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, Ubuntu 18.04). See [docs/RELEASING.md](docs/RELEASING.md).
+[GitHub Releases](https://github.com/rickcollette/CapDB/releases) publish one binary archive per platform, plus source, amalgamation, and language-binding archives. Linux names follow `capdb-<version>-<os-glibc-arch>.tar.gz` (Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, Ubuntu 18.04). The Windows embedded build is `capdb-<version>-windows-x86_64.zip`. Before an archive is packaged, `tests/sql/basic.sql` runs against the embedded shell and against `capdb-server` (embedded only for the Windows zip). See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Licensing
 

@@ -186,9 +186,11 @@ int capdb_tcp_listen(const char *zListen, int *pFd){
     memset(&un, 0, sizeof(un));
     un.sun_family = AF_UNIX;
     memcpy(un.sun_path, zListen, n+1);
+    /* fchmod the bound inode. chmod on the path can follow a name that
+    ** replaced the socket between bind and the mode change. */
     if( bind(fd, (struct sockaddr*)&un, sizeof(un))!=0
      || listen(fd, 64)!=0
-     || chmod(zListen, 0600)!=0 ){
+     || fchmod(fd, 0600)!=0 ){
       close(fd);
       unlink(zListen);
       return -1;

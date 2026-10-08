@@ -99,8 +99,49 @@ jobs:
             dist/ubuntu24.04/capdb-bindings-${{ steps.ver.outputs.version }}.tar.gz.sha256
           if-no-files-found: error
 
+  windows-mingw:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout CapDB
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.sha }}
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          RAW="${TAG#v}"
+          BASE="${RAW%%-beta*}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$BASE" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$BASE" > VERSION
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            gcc-mingw-w64-x86-64 libz-mingw-w64-dev wine zip
+
+      - name: Build Windows archive
+        run: scripts/release-windows.sh
+
+      - name: Upload Windows archive
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: capdb-windows
+          path: |
+            dist/windows-x86_64/capdb-${{ steps.ver.outputs.version }}-windows-x86_64.zip
+            dist/windows-x86_64/capdb-${{ steps.ver.outputs.version }}-windows-x86_64.zip.sha256
+          if-no-files-found: error
+
   publish:
-    needs: matrix
+    needs: [matrix, windows-mingw]
     runs-on: ubuntu-24.04
     steps:
       - name: Resolve version
@@ -141,11 +182,16 @@ jobs:
             | RHEL 9 x86_64 | `capdb-${{ steps.ver.outputs.version }}-rhel9-glibc2.34-x86_64.tar.gz` |
             | Rocky Linux current x86_64 | `capdb-${{ steps.ver.outputs.version }}-rocky10-glibc-detect-x86_64.tar.gz` |
             | Ubuntu 18.04 x86_64 | `capdb-${{ steps.ver.outputs.version }}-ubuntu18.04-glibc2.27-x86_64.tar.gz` |
+            | Windows x86_64 (embedded) | `capdb-${{ steps.ver.outputs.version }}-windows-x86_64.zip` |
+
+            The Windows zip is a MinGW cross-compile of `capdb.exe` and `capdb.dll`. Networking, the volume store, and replication are not in that archive.
 
             Source, amalgamation, and language bindings are platform-independent.
           files: |
             dist/capdb-${{ steps.ver.outputs.version }}-*.tar.gz
             dist/capdb-${{ steps.ver.outputs.version }}-*.tar.gz.sha256
+            dist/capdb-${{ steps.ver.outputs.version }}-windows-x86_64.zip
+            dist/capdb-${{ steps.ver.outputs.version }}-windows-x86_64.zip.sha256
             dist/capdb-amalgamation-${{ steps.ver.outputs.version }}.tar.gz
             dist/capdb-amalgamation-${{ steps.ver.outputs.version }}.tar.gz.sha256
             dist/capdb-bindings-${{ steps.ver.outputs.version }}.tar.gz

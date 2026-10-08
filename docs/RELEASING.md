@@ -9,7 +9,7 @@ single-file amalgamation (`capdb.c` + `capdb.h`) or as a vendored subtree.
 
 The version lives in the [`VERSION`](../VERSION) file and is read by CMake
 (`project(capdb VERSION …)`) and the codegen. Release tags are `v<VERSION>`
-(e.g. `v3.7.0`).
+(e.g. `v3.7.1`).
 
 ## One-time: create the standalone repo
 
@@ -28,7 +28,8 @@ git -C . push -u origin main         # review, then push
    ```bash
    scripts/release-platform.sh ubuntu24.04 "$(cat VERSION)" ubuntu:24.04 ubuntu24.04-glibc2.39-x86_64
    ```
-3. Commit, tag, and push. The tag push runs [`.github/workflows/release.yml`](../.github/workflows/release.yml), which builds every platform and publishes the GitHub Release:
+3. The Windows embedded archive is cross-compiled on the Ubuntu 24.04 runner (`scripts/release-windows.sh`). It does not use the Capper builder image.
+4. Commit, tag, and push. The tag push runs [`.github/workflows/release.yml`](../.github/workflows/release.yml), which builds every platform and publishes the GitHub Release:
    ```bash
    git tag v<version>
    git push origin main --tags
@@ -36,11 +37,14 @@ git -C . push -u origin main         # review, then push
 
 ## Release artifacts
 
-Each platform archive is built inside the matching Capper release builder (Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, Ubuntu 18.04). `scripts/release.sh` names the binary archive with that platform suffix and writes a `.sha256` beside every tarball.
+Each Linux archive is built inside the matching Capper release builder (Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, Ubuntu 18.04). `scripts/release.sh` names the binary archive with that platform suffix and writes a `.sha256` beside every tarball. The Windows zip is produced by `scripts/release-windows.sh` on the Ubuntu 24.04 runner and has its own `.sha256`.
+
+`scripts/release.sh` runs `scripts/sql-release-smoke.sh` after the build, including when `ctest` is skipped. The same `tests/sql/basic.sql` script is executed with `capdb -bail -batch` on an in-memory database and against a local `capdb-server` started with `--insecure`. Both outputs must match `tests/sql/basic.expected`. The Windows job passes `--embedded-only` and runs that embedded half under Wine.
 
 | Artifact | Contents |
 |----------|----------|
 | `capdb-<ver>-<platform>.tar.gz` | binary dist for one glibc family: `capdb` CLI, `capdb-server`, libraries, headers, man pages |
+| `capdb-<ver>-windows-x86_64.zip` | MinGW x86_64 embedded build: `capdb.exe`, `capdb.dll`, `libcapdb.dll.a`, `capdb.h`. Networking, the volume store, and replication are off |
 | `capdb-<ver>-src.tar.gz` | full source tree (CMake) |
 | `capdb-amalgamation-<ver>.tar.gz` | single-file `capdb.c` + public headers (`capdb.h`, `capdbext.h`, `capdb_client.h`, `capdb_pool.h`) + license/readme |
 | `capdb-bindings-<ver>.tar.gz` | Go, Rust, Python, and Java binding source trees plus helper scripts |

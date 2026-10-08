@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(capdb VERSION 3.7.0 LANGUAGES C)
+project(capdb VERSION 3.7.1 LANGUAGES C)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -38,7 +38,12 @@ if(CAPDB_ENABLE_STORE AND CAPDB_ENABLE_NETWORK)
 endif()
 
 if(CAPDB_HAVE_ZLIB)
-  find_package(ZLIB)
+  if(WIN32)
+    set(ZLIB_USE_STATIC_LIBS ON)
+    find_package(ZLIB REQUIRED)
+  else()
+    find_package(ZLIB)
+  endif()
 endif()
 if(CAPDB_ENABLE_NETWORK)
   find_package(OpenSSL REQUIRED)
@@ -64,9 +69,13 @@ endif()
 # ---------------------------------------------------------------------------
 set(CAPDB_COMPILE_DEFS
   CAPDB_THREADSAFE=1
-  _HAVE_CAPDB_CONFIG_H
   BUILD_capdb
 )
+# core/capdb_cfg.h is the Linux feature probe (localtime_r, dlopen, pread).
+# A Windows build must use the engine's own _WIN32 detection instead.
+if(NOT WIN32)
+  list(APPEND CAPDB_COMPILE_DEFS _HAVE_CAPDB_CONFIG_H)
+endif()
 
 if(CAPDB_ENABLE_POOL)
   list(APPEND CAPDB_COMPILE_DEFS CAPDB_ENABLE_POOL)
@@ -121,12 +130,39 @@ endif()
 
 # ---------------------------------------------------------------------------
 # Host tools: lemon, mkkeywordhash
+# These must run on the build machine. A MinGW cross compile would otherwise
+# produce .exe files the Linux build cannot execute.
 # ---------------------------------------------------------------------------
-add_executable(capdb_lemon tools/lemon.c)
-set_target_properties(capdb_lemon PROPERTIES OUTPUT_NAME lemon)
-
-add_executable(capdb_mkkeywordhash tools/mkkeywordhash.c)
-set_target_properties(capdb_mkkeywordhash PROPERTIES OUTPUT_NAME mkkeywordhash)
+if(CMAKE_CROSSCOMPILING)
+  set(CAPDB_HOST_CC "cc" CACHE STRING "Host C compiler for codegen tools")
+  set(CAPDB_LEMON_BIN "${CMAKE_BINARY_DIR}/host/lemon")
+  set(CAPDB_MKKEYWORDHASH_BIN "${CMAKE_BINARY_DIR}/host/mkkeywordhash")
+  add_custom_command(
+    OUTPUT "${CAPDB_LEMON_BIN}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/host"
+    COMMAND ${CAPDB_HOST_CC} -O2 -o "${CAPDB_LEMON_BIN}" "${CAPDB_ROOT}/tools/lemon.c"
+    DEPENDS "${CAPDB_ROOT}/tools/lemon.c"
+    COMMENT "Building host lemon"
+    VERBATIM
+  )
+  add_custom_command(
+    OUTPUT "${CAPDB_MKKEYWORDHASH_BIN}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/host"
+    COMMAND ${CAPDB_HOST_CC} -O2 -o "${CAPDB_MKKEYWORDHASH_BIN}" "${CAPDB_ROOT}/tools/mkkeywordhash.c"
+    DEPENDS "${CAPDB_ROOT}/tools/mkkeywordhash.c"
+    COMMENT "Building host mkkeywordhash"
+    VERBATIM
+  )
+  add_custom_target(capdb_lemon DEPENDS "${CAPDB_LEMON_BIN}")
+  add_custom_target(capdb_mkkeywordhash DEPENDS "${CAPDB_MKKEYWORDHASH_BIN}")
+else()
+  add_executable(capdb_lemon tools/lemon.c)
+  set_target_properties(capdb_lemon PROPERTIES OUTPUT_NAME lemon)
+  add_executable(capdb_mkkeywordhash tools/mkkeywordhash.c)
+  set_target_properties(capdb_mkkeywordhash PROPERTIES OUTPUT_NAME mkkeywordhash)
+  set(CAPDB_LEMON_BIN "$<TARGET_FILE:capdb_lemon>")
+  set(CAPDB_MKKEYWORDHASH_BIN "$<TARGET_FILE:capdb_mkkeywordhash>")
+endif()
 
 # ---------------------------------------------------------------------------
 # Generated sources
@@ -163,7 +199,7 @@ add_custom_command(
     "${CAPDB_ROOT}/tools/lempar.c" "${CAPDB_GEN_DIR}/lempar.c"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CAPDB_ROOT}/core/parse.y" "${CAPDB_GEN_DIR}/parse.y"
-  COMMAND $<TARGET_FILE:capdb_lemon> parse.y
+  COMMAND ${CAPDB_LEMON_BIN} parse.y
   WORKING_DIRECTORY "${CAPDB_GEN_DIR}"
   DEPENDS capdb_lemon core/parse.y "${CAPDB_ROOT}/tools/lempar.c"
   COMMENT "Generating parse.c and parse.h"
@@ -172,7 +208,7 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT "${KEYWORDHASH_H}"
-  COMMAND $<TARGET_FILE:capdb_mkkeywordhash> > "${KEYWORDHASH_H}"
+  COMMAND ${CAPDB_MKKEYWORDHASH_BIN} > "${KEYWORDHASH_H}"
   DEPENDS capdb_mkkeywordhash tools/mkkeywordhash.c
   COMMENT "Generating keywordhash.h"
   VERBATIM
@@ -219,7 +255,7 @@ if(CAPDB_ENABLE_FTS5)
       "${CAPDB_ROOT}/tools/lempar.c" "${CAPDB_GEN_DIR}/lempar.c"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${CAPDB_ROOT}/extensions/fts5/fts5parse.y" "${CAPDB_GEN_DIR}/fts5parse.y"
-    COMMAND $<TARGET_FILE:capdb_lemon> fts5parse.y
+    COMMAND ${CAPDB_LEMON_BIN} fts5parse.y
     WORKING_DIRECTORY "${CAPDB_GEN_DIR}"
     DEPENDS capdb_lemon extensions/fts5/fts5parse.y "${CAPDB_ROOT}/tools/lempar.c"
     COMMENT "Generating fts5parse.c and fts5parse.h"
@@ -332,6 +368,9 @@ set_target_properties(capdb_shared PROPERTIES
   OUTPUT_NAME capdb
   POSITION_INDEPENDENT_CODE ON
 )
+if(WIN32)
+  set_target_properties(capdb_shared PROPERTIES PREFIX "")
+endif()
 add_dependencies(capdb_shared capdb_codegen)
 target_include_directories(capdb_shared PUBLIC "${CAPDB_GEN_DIR}")
 if(CAPDB_ENABLE_NETWORK)

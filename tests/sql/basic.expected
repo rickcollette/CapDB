@@ -1,0 +1,16 @@
+1
+4|capdb
+
+integer|text|null
+1|alpha|2
+2|beta|5
+3|gamma|
+3|7
+alpha
+beta
+alpha|3
+beta|5
+2
+alpha|cold
+beta|hot
+beta

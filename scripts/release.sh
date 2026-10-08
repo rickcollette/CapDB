@@ -62,6 +62,9 @@ else
   echo ">> Skipping recursive ctest run for artifact smoke"
 fi
 
+echo ">> SQL release smoke"
+"$ROOT/scripts/sql-release-smoke.sh" "$BUILD/capdb" "$BUILD/capdb-server"
+
 echo ">> Codegen parity"
 python3 "$ROOT/tools/py/tests/test_codegen_parity.py"
 

@@ -6,6 +6,21 @@
 > server, client) are licensed under the MIT License (© 2026 Rick Collette).
 > See [LICENSE](LICENSE) / [LICENSE.md](LICENSE.md).
 
+## CapDB 3.7.1 — Windows embedded archive and release SQL smoke
+
+### Security
+
+- A Unix socket is mode `0600` via `fchmod` on the bound descriptor, so a path swapped in after `bind` does not receive the mode change.
+
+### Releases
+
+- The Ubuntu 24.04 release job cross-compiles an x86_64 MinGW archive, `capdb-<version>-windows-x86_64.zip`, containing `capdb.exe`, `capdb.dll`, `libcapdb.dll.a`, and `capdb.h`. Networking, the volume store, and replication are not in that archive. A `.sha256` file is published beside the zip.
+- Release builds run `tests/sql/basic.sql` through the embedded `capdb` shell and through `capdb-server` before packaging. The Windows job runs the same queries embedded under Wine. Output is checked against `tests/sql/basic.expected`.
+
+### SQL coverage
+
+- The shared script covers literals and types, table create, insert, update, delete, `COUNT`/`SUM`, a filter, a transaction rollback, a join, and a unique index.
+
 ## CapDB 3.7.0 — Network hardening and platform releases
 
 ### Security
