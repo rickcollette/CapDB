@@ -47,9 +47,11 @@ capdb-server --listen 0.0.0.0:5432 \
   --db-root /var/lib/capdb/databases
 ```
 
+`--listen` accepts `host:port` (the default is `0.0.0.0:5432`), `[IPv6]:port`, or an absolute Unix socket path created mode `0600`.
+
 Auth file: one token per line, or `user:password` lines. Secrets may also be
 stored as `sha256:<64-hex-digest>` or `user:sha256:<64-hex-digest>`. Paths in
-`OPEN` must resolve under `--db-root`.
+`OPEN` must resolve under `--db-root`, and the server opens them from that root with `O_NOFOLLOW`.
 
 Development without TLS: add `--insecure` (client must pass `insecure=1` in URI).
 

@@ -9,7 +9,7 @@ single-file amalgamation (`capdb.c` + `capdb.h`) or as a vendored subtree.
 
 The version lives in the [`VERSION`](../VERSION) file and is read by CMake
 (`project(capdb VERSION …)`) and the codegen. Release tags are `v<VERSION>`
-(e.g. `v3.6.1`).
+(e.g. `v3.7.0`).
 
 ## One-time: create the standalone repo
 
@@ -23,28 +23,24 @@ git -C . push -u origin main         # review, then push
 
 ## Cutting a release
 
-1. Bump [`VERSION`](../VERSION) and update [`CHANGELOG.md`](../CHANGELOG.md).
-2. Verify locally:
+1. Bump [`VERSION`](../VERSION), the CMake `project()` version, and [`CHANGELOG.md`](../CHANGELOG.md).
+2. Verify one platform locally. This uses the Capper release builder image for that OS:
    ```bash
-   scripts/release.sh        # configure (Release) + build + ctest + package -> dist/
+   scripts/release-platform.sh ubuntu24.04 "$(cat VERSION)" ubuntu:24.04 ubuntu24.04-glibc2.39-x86_64
    ```
-3. Commit, tag, and push:
+3. Commit, tag, and push. The tag push runs [`.github/workflows/release.yml`](../.github/workflows/release.yml), which builds every platform and publishes the GitHub Release:
    ```bash
-   git commit -am "CapDB <version>"
    git tag v<version>
    git push origin main --tags
    ```
 
-Create the GitHub Release from the pushed tag and attach the artifacts generated
-by `scripts/release.sh`.
-
 ## Release artifacts
 
-`scripts/release.sh` writes to `dist/`:
+Each platform archive is built inside the matching Capper release builder (Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, Ubuntu 18.04). `scripts/release.sh` names the binary archive with that platform suffix and writes a `.sha256` beside every tarball.
 
 | Artifact | Contents |
 |----------|----------|
-| `capdb-<ver>-<os>-<arch>.tar.gz` | binary dist: `capdb` CLI, `capdb-server`, `libcapdb.a`, `libcapdb_client.a`, headers, man pages |
+| `capdb-<ver>-<platform>.tar.gz` | binary dist for one glibc family: `capdb` CLI, `capdb-server`, libraries, headers, man pages |
 | `capdb-<ver>-src.tar.gz` | full source tree (CMake) |
 | `capdb-amalgamation-<ver>.tar.gz` | single-file `capdb.c` + public headers (`capdb.h`, `capdbext.h`, `capdb_client.h`, `capdb_pool.h`) + license/readme |
 | `capdb-bindings-<ver>.tar.gz` | Go, Rust, Python, and Java binding source trees plus helper scripts |

@@ -16,7 +16,7 @@
 
 ---
 
-**CapDB** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
+**CapDB 3.7.0** is a standalone SQL database engine for embedded apps and server deployments. Use it locally with the `capdb` shell, embed the `libcapdb` library, or connect over **`capdb://`** to a TLS-backed SQL server with pooling, path jails, and optional primary/replica replication.
 
 Standard SQL, portable database files, and a production-focused stack: **connection pool**, **network server**, **volume store**, and **WAL replication**.
 
@@ -133,7 +133,7 @@ capdb-server --storage volume --volume-root /var/lib/capdb/volumes \
   --cert srv.pem --key srv.key
 ```
 
-Replica read preference: `read_preference=replica` and `replicas=` on the `capdb://` URI route read-only `EXEC` and prepared reads to the first configured replica stream. There is not yet replica balancing or automatic failover across the `replicas=` list. See [capdb/README.md](capdb/README.md).
+Replica read preference: `read_preference=replica` and `replicas=` on the `capdb://` URI route read-only `EXEC` and prepared reads to the first configured replica stream. A replica entry is `host`, `host:port`, or `[IPv6]:port`. There is not yet replica balancing or automatic failover across the `replicas=` list. See [capdb/README.md](capdb/README.md).
 
 ## Security
 
@@ -143,7 +143,11 @@ Replica read preference: `read_preference=replica` and `replicas=` on the `capdb
 > [!IMPORTANT]
 > Report vulnerabilities through [GitHub private security advisories](https://github.com/rickcollette/CapDB/security/advisories/new) — not public issues. See [SECURITY.md](SECURITY.md) for the full policy.
 
-Built-in hardening includes path jails (`realpath` + prefix checks), replica read-only gates on `EXEC`/`PREPARE`/`STEP`, required replication tokens, `ATTACH` denial in volume mode, and generation fencing on replicated WAL.
+Built-in hardening includes a path jail that opens and deletes from the canonical root with `O_NOFOLLOW`, replica read-only gates on `EXEC`/`PREPARE`/`STEP`, required replication tokens, `ATTACH` denial in volume mode, and generation fencing on replicated WAL. A TLS server without both a certificate and a key does not start. `--listen` takes `host:port`, `[IPv6]:port`, or an absolute Unix socket path.
+
+## Releases
+
+[GitHub Releases](https://github.com/rickcollette/CapDB/releases) publish one binary archive per platform, plus source, amalgamation, and language-binding archives. Binary names follow `capdb-<version>-<os-glibc-arch>.tar.gz` (Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, Ubuntu 18.04). See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Licensing
 

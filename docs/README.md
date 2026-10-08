@@ -8,6 +8,7 @@ This directory contains the maintained CapDB guides.
 | Build and install | [BUILD.md](BUILD.md) |
 | Repository layout | [LAYOUT.md](LAYOUT.md) |
 | Release process | [RELEASING.md](RELEASING.md) |
+| Changelog | [../CHANGELOG.md](../CHANGELOG.md) |
 | Storage engine ADR | [adr/001-storage-engine.md](adr/001-storage-engine.md) |
 | Legacy upstream notes | [upstream/README-LEGACY.md](upstream/README-LEGACY.md) |
 

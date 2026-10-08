@@ -6,6 +6,40 @@
 > server, client) are licensed under the MIT License (© 2026 Rick Collette).
 > See [LICENSE](LICENSE) / [LICENSE.md](LICENSE.md).
 
+## CapDB 3.7.0 — Network hardening and platform releases
+
+### Security
+
+- The path jail opens and deletes through a directory descriptor of the canonical root, with `O_NOFOLLOW` on every component. A symlink swapped in after the path check cannot redirect the open outside that root.
+- TLS setup fails closed when configuration is missing. A TLS server context is refused unless it has both a certificate and a key.
+- Password authentication always checks the secret, including when the username does not match.
+- A failed TLS handshake owns and closes the accepted socket, so it cannot close a descriptor the process has already reused.
+
+### Network
+
+- `--listen` accepts `host:port`, `[IPv6]:port`, and an absolute Unix socket path created mode `0600`. A regular file at that path is left untouched.
+- A `replicas=` entry keeps its own host when the port is omitted, and bracketed IPv6 endpoints parse as addresses.
+- A malformed `capdb://` URI frees query strings it already allocated.
+- JNI rejects a null URI, and a failed connect copies the error text before the connection is closed.
+
+### Storage and replication
+
+- WAL segment growth frees the previous allocation if the new one cannot be obtained.
+- The store VFS keeps the resolved path for the life of the wrapper and preserves the filename layout.
+
+### SQL compatibility
+
+- Production builds enable the session and changeset APIs.
+- Production builds enable database, table, and origin column metadata.
+- Embedded DSNs accept the production option set.
+- Public headers use the canonical SQLite compatibility types.
+
+### Releases
+
+- A version tag builds five platform archives with the Capper release builders: Ubuntu 24.04, Debian 12, RHEL 9, Rocky Linux 10, and Ubuntu 18.04.
+- Binary archives are named `capdb-<version>-<platform>.tar.gz`. Every archive has a matching `.sha256` file.
+- Release builds drop inherited sanitizer flags so the package is a normal Release build.
+
 ## CapDB 3.6.1 — Pure CapDB Language Drivers
 
 ### Language Drivers

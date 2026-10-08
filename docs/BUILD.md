@@ -100,7 +100,7 @@ not the full SQLite amalgamation.
 
 `--insecure` disables TLS on the wire; use only for local development. The auth file stores credentials in plaintext.
 
-The server defaults to listening on `127.0.0.1:5432` (not all interfaces).
+The server defaults to listening on `0.0.0.0:5432`. `--listen` also accepts `[IPv6]:port` and an absolute Unix socket path (mode `0600`).
 
 ## Code generation
 

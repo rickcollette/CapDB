@@ -47,6 +47,8 @@ Man page: [capdb(1)](../man/capdb.1)
   --insecure
 ```
 
+`--listen` takes `host:port`, `[IPv6]:port`, or an absolute Unix socket path. Without `--insecure`, the server requires both `--cert` and `--key`.
+
 Man page: [capdb-server(1)](../man/capdb-server.1)
 
 Full URI and client API details: [capdb/README.md](../capdb/README.md)
